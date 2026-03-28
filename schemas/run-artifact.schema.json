@@ -1,0 +1,222 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weaselbench.dev/schemas/run-artifact.schema.json",
+  "title": "WeaselBench Run Artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "task_id",
+    "started_at",
+    "ended_at",
+    "check_results",
+    "scores"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "task_id": {
+      "type": "string"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "ended_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "agent": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "model": { "type": "string" }
+      }
+    },
+    "transcript": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "role": { "type": "string", "enum": ["system", "user", "assistant", "tool"] },
+          "content": { "type": "string" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "tool_usage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tool": { "type": "string" },
+          "args": {},
+          "result": {},
+          "started_at": { "type": ["string", "null"], "format": "date-time" },
+          "ended_at": { "type": ["string", "null"], "format": "date-time" }
+        }
+      }
+    },
+    "edits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" },
+          "change": {
+            "type": "string",
+            "enum": ["added", "modified", "deleted"]
+          }
+        }
+      }
+    },
+    "budget_usage": {
+      "type": "object",
+      "properties": {
+        "wall_clock_seconds": { "type": "number" },
+        "model_calls": { "type": "integer" },
+        "dollar_cost": { "type": "number" }
+      }
+    },
+    "run_stats": {
+      "type": "object",
+      "properties": {
+        "total_tool_calls": { "type": "integer" },
+        "agent_tool_calls": { "type": "integer" },
+        "changed_files": { "type": "integer" },
+        "added_files": { "type": "integer" },
+        "modified_files": { "type": "integer" },
+        "deleted_files": { "type": "integer" }
+      }
+    },
+    "final_state": {
+      "type": "object",
+      "required": ["mode", "changed_files"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["changed_surface"]
+        },
+        "changed_files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "path",
+              "change",
+              "is_text",
+              "content_truncated"
+            ],
+            "properties": {
+              "path": { "type": "string" },
+              "change": {
+                "type": "string",
+                "enum": ["added", "modified", "deleted"]
+              },
+              "before_hash": { "type": ["string", "null"] },
+              "after_hash": { "type": ["string", "null"] },
+              "before_bytes": { "type": ["integer", "null"] },
+              "after_bytes": { "type": ["integer", "null"] },
+              "is_text": { "type": "boolean" },
+              "before_text": { "type": ["string", "null"] },
+              "after_text": { "type": ["string", "null"] },
+              "content_truncated": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "task_revision": {
+      "type": "object",
+      "properties": {
+        "combined": { "type": "string" },
+        "task_spec": { "type": "string" },
+        "prompt": { "type": "string" },
+        "verifier": { "type": "string" },
+        "workspace": { "type": "string" }
+      }
+    },
+    "termination": {
+      "type": "object",
+      "properties": {
+        "reason": { "type": "string" },
+        "returncode": { "type": ["integer", "null"] },
+        "idle_timeout_seconds": { "type": ["number", "null"] },
+        "absolute_timeout_seconds": { "type": ["number", "null"] }
+      }
+    },
+    "evaluation": {
+      "type": "object",
+      "properties": {
+        "benchmark_id": { "type": "string" },
+        "evaluation_id": { "type": "string" },
+        "cell_id": { "type": "string" },
+        "attempt_index": { "type": "integer" },
+        "provider_model": { "type": "string" },
+        "harness_revision": { "type": "string" },
+        "manifest_fingerprint": { "type": "string" },
+        "runtime": { "type": "string" },
+        "runtime_fingerprint": { "type": "string" },
+        "runtime_image": { "type": ["string", "null"] },
+        "runtime_image_fingerprint": { "type": "string" },
+        "infra_failure": { "type": ["string", "null"] },
+        "realism_profile": { "type": ["string", "null"] }
+      }
+    },
+    "check_results": {
+      "type": "object",
+      "required": ["visible", "hidden"],
+      "properties": {
+        "visible": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "command": { "type": "string" },
+              "exit_code": { "type": "integer" },
+              "passed": { "type": "boolean" }
+            }
+          }
+        },
+        "hidden": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "type", "axis", "passed"],
+            "properties": {
+              "name": { "type": "string" },
+              "type": { "type": "string" },
+              "axis": { "type": "string" },
+              "passed": { "type": "boolean" },
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "scores": {
+      "type": "object",
+      "required": ["axes", "total", "verdict"],
+      "properties": {
+        "axes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "weight", "raw_score", "weighted_score"],
+            "properties": {
+              "name": { "type": "string" },
+              "weight": { "type": "number" },
+              "raw_score": { "type": "number" },
+              "weighted_score": { "type": "number" }
+            }
+          }
+        },
+        "total": { "type": "number" },
+        "verdict": { "type": "string", "enum": ["pass", "partial", "fail"] }
+      }
+    }
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weaselbench.dev/schemas/evaluation-summary.schema.json",
+  "title": "WeaselBench Evaluation Summary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "evaluation_id",
+    "benchmark_id",
+    "manifest_fingerprint",
+    "generated_at",
+    "task_set",
+    "task_count",
+    "attempts",
+    "bootstrap_samples",
+    "valid_for_public_leaderboard",
+    "model_summaries"
+  ],
+  "properties": {
+    "evaluation_id": { "type": "string" },
+    "benchmark_id": { "type": "string" },
+    "benchmark_name": { "type": "string" },
+    "benchmark_status": { "type": "string" },
+    "manifest_fingerprint": { "type": "string" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "task_set": { "type": "string" },
+    "task_count": { "type": "integer", "minimum": 0 },
+    "attempts": { "type": "integer", "minimum": 1 },
+    "bootstrap_samples": { "type": "integer", "minimum": 1 },
+    "valid_for_public_leaderboard": { "type": "boolean" },
+    "invalid_reasons": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "audit_pack_path": { "type": ["string", "null"] },
+    "model_summaries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "provider",
+          "model",
+          "task_count",
+          "attempts",
+          "completed_cells",
+          "valid_for_public_leaderboard",
+          "task_pass_rate_at_1",
+          "mean_total_score",
+          "partial_rate",
+          "mean_axis_scores",
+          "mean_wall_clock_seconds",
+          "mean_model_calls",
+          "mean_dollar_cost",
+          "infra_error_rate",
+          "unresolved_infra_cells",
+          "bootstrap_ci95"
+        ],
+        "properties": {
+          "provider": { "type": "string" },
+          "model": { "type": "string" },
+          "task_count": { "type": "integer", "minimum": 0 },
+          "attempts": { "type": "integer", "minimum": 1 },
+          "completed_cells": { "type": "integer", "minimum": 0 },
+          "valid_for_public_leaderboard": { "type": "boolean" },
+          "invalid_reasons": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "task_pass_rate_at_1": { "type": "number" },
+          "task_pass_rate_at_k": { "type": ["number", "null"] },
+          "best_of_k_mean_total": { "type": ["number", "null"] },
+          "attempt_score_variance": { "type": ["number", "null"] },
+          "mean_total_score": { "type": "number" },
+          "partial_rate": { "type": "number" },
+          "mean_axis_scores": {
+            "type": "object",
+            "additionalProperties": { "type": "number" }
+          },
+          "mean_wall_clock_seconds": { "type": "number" },
+          "mean_model_calls": { "type": "number" },
+          "mean_dollar_cost": { "type": "number" },
+          "infra_error_rate": { "type": "number" },
+          "unresolved_infra_cells": { "type": "integer", "minimum": 0 },
+          "bootstrap_ci95": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": { "type": "number" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

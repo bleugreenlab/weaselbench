@@ -1,0 +1,2496 @@
+diff -ruN audit5/app/cloud/server/functions/buildRegistrationData.ts audit5-patched/app/cloud/server/functions/buildRegistrationData.ts
+--- audit5/app/cloud/server/functions/buildRegistrationData.ts	2026-03-25 17:54:15
++++ audit5-patched/app/cloud/server/functions/buildRegistrationData.ts	2026-03-25 18:49:11
+@@ -1,5 +1,5 @@
+ import { LivechatContacts, Statistics, Users } from '@rocket.chat/models';
+-import moment from 'moment';
++import { format } from 'date-fns';
+ 
+ import { settings } from '../../../settings/server';
+ import { statistics } from '../../../statistics/server';
+@@ -69,7 +69,7 @@
+ 	const workspaceType = settings.get<string>('Server_Type');
+ 
+ 	const seats = await Users.getActiveLocalUserCount();
+-	const MAC = await LivechatContacts.countContactsOnPeriod(moment.utc().format('YYYY-MM'));
++	const MAC = await LivechatContacts.countContactsOnPeriod(format(new Date(), 'yyyy-MM'));
+ 
+ 	const license = settings.get<string>('Enterprise_License');
+ 
+diff -ruN audit5/app/lib/server/lib/notifyUsersOnMessage.ts audit5-patched/app/lib/server/lib/notifyUsersOnMessage.ts
+--- audit5/app/lib/server/lib/notifyUsersOnMessage.ts	2026-03-25 17:54:15
++++ audit5-patched/app/lib/server/lib/notifyUsersOnMessage.ts	2026-03-25 18:49:11
+@@ -2,7 +2,7 @@
+ import { isEditedMessage } from '@rocket.chat/core-typings';
+ import type { Updater } from '@rocket.chat/models';
+ import { Subscriptions, Rooms } from '@rocket.chat/models';
+-import moment from 'moment';
++import { differenceInMilliseconds } from 'date-fns';
+ 
+ import {
+ 	notifyOnSubscriptionChanged,
+@@ -165,7 +165,7 @@
+ export async function notifyUsersOnMessage(message: IMessage, room: IRoom, roomUpdater: Updater<IRoom>): Promise<IMessage> {
+ 	// Skips this callback if the message was edited and increments it if the edit was way in the past (aka imported)
+ 	if (isEditedMessage(message)) {
+-		if (Math.abs(moment(message.editedAt).diff(Date.now())) > 60000) {
++		if (Math.abs(differenceInMilliseconds(new Date(message.editedAt), new Date())) > 60000) {
+ 			// TODO: Review as I am not sure how else to get around this as the incrementing of the msgs count shouldn't be in this callback
+ 			Rooms.getIncMsgCountUpdateQuery(1, roomUpdater);
+ 			return message;
+@@ -183,7 +183,7 @@
+ 		return message;
+ 	}
+ 
+-	if (message.ts && Math.abs(moment(message.ts).diff(Date.now())) > 60000) {
++	if (message.ts && Math.abs(differenceInMilliseconds(new Date(message.ts), new Date())) > 60000) {
+ 		Rooms.getIncMsgCountUpdateQuery(1, roomUpdater);
+ 		return message;
+ 	}
+diff -ruN audit5/app/lib/server/lib/processDirectEmail.ts audit5-patched/app/lib/server/lib/processDirectEmail.ts
+--- audit5/app/lib/server/lib/processDirectEmail.ts	2026-03-25 17:54:15
++++ audit5-patched/app/lib/server/lib/processDirectEmail.ts	2026-03-25 18:49:11
+@@ -1,7 +1,7 @@
+ import type { IMessage } from '@rocket.chat/core-typings';
+ import { Messages, Subscriptions, Users, Rooms } from '@rocket.chat/models';
+ import type { ParsedMail } from 'mailparser';
+-import moment from 'moment';
++import { differenceInMilliseconds } from 'date-fns';
+ 
+ import { canAccessRoomAsync } from '../../../authorization/server';
+ import { hasPermissionAsync } from '../../../authorization/server/functions/hasPermission';
+@@ -25,7 +25,7 @@
+ 
+ 	const ts = new Date(email.date);
+ 
+-	const tsDiff = Math.abs(moment(ts).diff(new Date()));
++	const tsDiff = Math.abs(differenceInMilliseconds(new Date(ts), new Date()));
+ 
+ 	let msg = email.text.split('\n\n').join('\n');
+ 
+diff -ruN audit5/app/lib/server/lib/sendNotificationsOnMessage.ts audit5-patched/app/lib/server/lib/sendNotificationsOnMessage.ts
+--- audit5/app/lib/server/lib/sendNotificationsOnMessage.ts	2026-03-25 17:54:15
++++ audit5-patched/app/lib/server/lib/sendNotificationsOnMessage.ts	2026-03-25 18:49:11
+@@ -9,7 +9,7 @@
+ } from '@rocket.chat/core-typings';
+ import { Subscriptions, Users } from '@rocket.chat/models';
+ import emojione from 'emojione';
+-import moment from 'moment';
++import { differenceInMilliseconds } from 'date-fns';
+ import type { RootFilterOperators } from 'mongodb';
+ 
+ import { getMentions } from './notifyUsersOnMessage';
+@@ -397,7 +397,7 @@
+ 		return message;
+ 	}
+ 
+-	if (message.ts && Math.abs(moment(message.ts).diff(new Date())) > 60000) {
++	if (message.ts && Math.abs(differenceInMilliseconds(new Date(message.ts), new Date())) > 60000) {
+ 		return message;
+ 	}
+ 
+diff -ruN audit5/app/lib/server/methods/sendMessage.ts audit5-patched/app/lib/server/methods/sendMessage.ts
+--- audit5/app/lib/server/methods/sendMessage.ts	2026-03-25 17:54:15
++++ audit5-patched/app/lib/server/methods/sendMessage.ts	2026-03-25 18:49:11
+@@ -7,7 +7,7 @@
+ import type { TOptions } from 'i18next';
+ import { check, Match } from 'meteor/check';
+ import { Meteor } from 'meteor/meteor';
+-import moment from 'moment';
++import { differenceInMilliseconds } from 'date-fns';
+ 
+ import { i18n } from '../../../../server/lib/i18n';
+ import { SystemLogger } from '../../../../server/lib/logger/system';
+@@ -50,7 +50,7 @@
+ 	const now = new Date();
+ 	message.ts = extraInfo?.ts ?? message.ts ?? now;
+ 	if (isTimestampFromClient) {
+-		const tsDiff = Math.abs(moment(message.ts).diff(Date.now()));
++		const tsDiff = Math.abs(differenceInMilliseconds(new Date(message.ts), new Date()));
+ 		if (tsDiff > 60000) {
+ 			throw new Meteor.Error('error-message-ts-out-of-sync', 'Message timestamp is out of sync', {
+ 				method: 'sendMessage',
+diff -ruN audit5/app/lib/server/methods/updateMessage.ts audit5-patched/app/lib/server/methods/updateMessage.ts
+--- audit5/app/lib/server/methods/updateMessage.ts	2026-03-25 17:54:15
++++ audit5-patched/app/lib/server/methods/updateMessage.ts	2026-03-25 18:49:11
+@@ -3,7 +3,7 @@
+ import { Messages, Users } from '@rocket.chat/models';
+ import { Match, check } from 'meteor/check';
+ import { Meteor } from 'meteor/meteor';
+-import moment from 'moment';
++import { differenceInMinutes } from 'date-fns';
+ 
+ import { canSendMessageAsync } from '../../../authorization/server/functions/canSendMessage';
+ import { hasPermissionAsync } from '../../../authorization/server/functions/hasPermission';
+@@ -68,10 +68,10 @@
+ 		let msgTs;
+ 
+ 		if (originalMessage.ts instanceof Date || Match.test(originalMessage.ts, Number)) {
+-			msgTs = moment(originalMessage.ts);
++			msgTs = new Date(originalMessage.ts);
+ 		}
+ 		if (msgTs) {
+-			currentTsDiff = moment().diff(msgTs, 'minutes');
++			currentTsDiff = differenceInMinutes(new Date(), new Date(msgTs));
+ 		}
+ 		if (currentTsDiff >= blockEditInMinutes) {
+ 			throw new Meteor.Error('error-message-editing-blocked', 'Message editing is blocked', {
+diff -ruN audit5/app/lib/server/startup/mentionUserNotInChannel.ts audit5-patched/app/lib/server/startup/mentionUserNotInChannel.ts
+--- audit5/app/lib/server/startup/mentionUserNotInChannel.ts	2026-03-25 17:54:15
++++ audit5-patched/app/lib/server/startup/mentionUserNotInChannel.ts	2026-03-25 18:49:11
+@@ -4,7 +4,7 @@
+ import { Subscriptions, Users } from '@rocket.chat/models';
+ import { isTruthy } from '@rocket.chat/tools';
+ import type { ActionsBlock } from '@rocket.chat/ui-kit';
+-import moment from 'moment';
++import { differenceInMilliseconds } from 'date-fns';
+ 
+ import { callbacks } from '../../../../server/lib/callbacks';
+ import { i18n } from '../../../../server/lib/i18n';
+@@ -57,7 +57,7 @@
+ 		// TODO: check if I need to test this 60 second rule.
+ 		// If the message was edited, or is older than 60 seconds (imported)
+ 		// the notifications will be skipped, so we can also skip this validation
+-		if (isEditedMessage(message) || (message.ts && Math.abs(moment(message.ts).diff(moment())) > 60000) || !message.mentions) {
++		if (isEditedMessage(message) || (message.ts && Math.abs(differenceInMilliseconds(new Date(message.ts), new Date())) > 60000) || !message.mentions) {
+ 			return message;
+ 		}
+ 
+diff -ruN audit5/app/livechat/server/business-hour/AbstractBusinessHour.ts audit5-patched/app/livechat/server/business-hour/AbstractBusinessHour.ts
+--- audit5/app/livechat/server/business-hour/AbstractBusinessHour.ts	2026-03-25 17:54:15
++++ audit5-patched/app/livechat/server/business-hour/AbstractBusinessHour.ts	2026-03-25 18:49:11
+@@ -3,7 +3,8 @@
+ import type { ILivechatBusinessHoursModel, IUsersModel } from '@rocket.chat/model-typings';
+ import { LivechatBusinessHours, Users } from '@rocket.chat/models';
+ import type { IWorkHoursCronJobsWrapper } from '@rocket.chat/models';
+-import moment from 'moment-timezone';
++import { format, isBefore, isSameSecond } from 'date-fns';
++import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
+ import type { UpdateFilter } from 'mongodb';
+ 
+ import { notifyOnUserChange } from '../../../lib/server/lib/notifyListener';
+@@ -92,36 +93,36 @@
+ 
+ 	private convertWorkHours(businessHourData: ILivechatBusinessHour): ILivechatBusinessHour {
+ 		businessHourData.workHours.forEach((hour: any) => {
+-			const startUtc = moment.tz(`${hour.day}:${hour.start}`, 'dddd:HH:mm', businessHourData.timezone.name).utc();
+-			const finishUtc = moment.tz(`${hour.day}:${hour.finish}`, 'dddd:HH:mm', businessHourData.timezone.name).utc();
++			const startUtc = fromZonedTime(new Date(`1970-01-05T${hour.start}:00`), businessHourData.timezone.name);
++			const finishUtc = fromZonedTime(new Date(`1970-01-05T${hour.finish}:00`), businessHourData.timezone.name);
+ 
+-			if (hour.open && finishUtc.isBefore(startUtc)) {
++			if (hour.open && isBefore(finishUtc, startUtc)) {
+ 				throw new Error('error-business-hour-finish-time-before-start-time');
+ 			}
+ 
+-			if (hour.open && startUtc.isSame(finishUtc)) {
++			if (hour.open && isSameSecond(startUtc, finishUtc)) {
+ 				throw new Error('error-business-hour-finish-time-equals-start-time');
+ 			}
+ 
+ 			hour.start = {
+ 				time: hour.start,
+ 				utc: {
+-					dayOfWeek: startUtc.clone().format('dddd'),
+-					time: startUtc.clone().format('HH:mm'),
++					dayOfWeek: format(startUtc, 'EEEE'),
++					time: format(startUtc, 'HH:mm'),
+ 				},
+ 				cron: {
+-					dayOfWeek: this.formatDayOfTheWeekFromServerTimezoneAndUtcHour(startUtc, 'dddd'),
++					dayOfWeek: this.formatDayOfTheWeekFromServerTimezoneAndUtcHour(startUtc, 'EEEE'),
+ 					time: this.formatDayOfTheWeekFromServerTimezoneAndUtcHour(startUtc, 'HH:mm'),
+ 				},
+ 			};
+ 			hour.finish = {
+ 				time: hour.finish,
+ 				utc: {
+-					dayOfWeek: finishUtc.clone().format('dddd'),
+-					time: finishUtc.clone().format('HH:mm'),
++					dayOfWeek: format(finishUtc, 'EEEE'),
++					time: format(finishUtc, 'HH:mm'),
+ 				},
+ 				cron: {
+-					dayOfWeek: this.formatDayOfTheWeekFromServerTimezoneAndUtcHour(finishUtc, 'dddd'),
++					dayOfWeek: this.formatDayOfTheWeekFromServerTimezoneAndUtcHour(finishUtc, 'EEEE'),
+ 					time: this.formatDayOfTheWeekFromServerTimezoneAndUtcHour(finishUtc, 'HH:mm'),
+ 				},
+ 			};
+@@ -131,14 +132,12 @@
+ 
+ 	protected getUTCFromTimezone(timezone?: string): string {
+ 		if (!timezone) {
+-			return String(moment().utcOffset() / 60);
++			return String(-(new Date().getTimezoneOffset() / 60));
+ 		}
+-		return moment.tz(timezone).format('Z');
++		return formatInTimeZone(new Date(), timezone, 'xxx');
+ 	}
+ 
+-	private formatDayOfTheWeekFromServerTimezoneAndUtcHour(utc: any, format: string): string {
+-		return moment(utc.format('dddd:HH:mm'), 'dddd:HH:mm')
+-			.add(moment().utcOffset() / 60, 'hours')
+-			.format(format);
++	private formatDayOfTheWeekFromServerTimezoneAndUtcHour(utc: Date, fmt: string): string {
++		return format(utc, fmt);
+ 	}
+ }
+diff -ruN audit5/app/livechat/server/business-hour/BusinessHourManager.ts audit5-patched/app/livechat/server/business-hour/BusinessHourManager.ts
+--- audit5/app/livechat/server/business-hour/BusinessHourManager.ts	2026-03-25 17:54:15
++++ audit5-patched/app/livechat/server/business-hour/BusinessHourManager.ts	2026-03-25 18:49:11
+@@ -2,7 +2,8 @@
+ import { LivechatBusinessHourTypes } from '@rocket.chat/core-typings';
+ import type { AgendaCronJobs } from '@rocket.chat/cron';
+ import { LivechatBusinessHours, LivechatDepartment, Users } from '@rocket.chat/models';
+-import moment from 'moment-timezone';
++import { format, getDay, getHours, getMinutes, parse } from 'date-fns';
++import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
+ 
+ import type { IBusinessHourBehavior, IBusinessHourType } from './AbstractBusinessHour';
+ import { closeBusinessHour } from './closeBusinessHour';
+@@ -213,9 +214,10 @@
+ 	): Promise<void> {
+ 		await Promise.all(
+ 			items.map((hour) => {
+-				const time = moment(hour, 'HH:mm').day(day);
+-				const jobName = `${time.format('dddd')}/${time.format('HH:mm')}/${type}`;
+-				const scheduleAt = `${time.minutes()} ${time.hours()} * * ${time.day()}`;
++				const time = parse(hour, 'HH:mm', new Date());
++				time.setDate(time.getDate() - time.getDay() + day);
++				const jobName = `${format(time, 'EEEE')}/${format(time, 'HH:mm')}/${type}`;
++				const scheduleAt = `${getMinutes(time)} ${getHours(time)} * * ${getDay(time)}`;
+ 				this.addToCache(jobName);
+ 				return this.cronJobs.add(jobName, scheduleAt, () => job(day, hour));
+ 			}),
+@@ -257,10 +259,10 @@
+ 	}
+ 
+ 	hasDaylightSavingTimeChanged(timezone: IBusinessHourTimezone): boolean {
+-		const now = moment().utc().tz(timezone.name);
+-		const currentUTC = now.format('Z');
+-		const existingTimezoneUTC = moment(timezone.utc, 'Z').utc().tz(timezone.name);
+-		const DSTHasChanged = !moment(currentUTC, 'Z').utc().tz(timezone.name).isSame(existingTimezoneUTC);
++		const now = toZonedTime(new Date(), timezone.name);
++		const currentUTC = formatInTimeZone(new Date(), timezone.name, 'xxx');
++		const existingTimezoneUTC = toZonedTime(new Date(), timezone.name);
++		const DSTHasChanged = currentUTC !== timezone.utc;
+ 
+ 		return currentUTC !== timezone.utc && DSTHasChanged;
+ 	}
+diff -ruN audit5/app/livechat/server/business-hour/Default.ts audit5-patched/app/livechat/server/business-hour/Default.ts
+--- audit5/app/livechat/server/business-hour/Default.ts	2026-03-25 17:54:15
++++ audit5-patched/app/livechat/server/business-hour/Default.ts	2026-03-25 18:49:11
+@@ -1,6 +1,6 @@
+ import type { ILivechatBusinessHour } from '@rocket.chat/core-typings';
+ import { LivechatBusinessHourTypes } from '@rocket.chat/core-typings';
+-import moment from 'moment-timezone';
++import { formatInTimeZone } from 'date-fns-tz';
+ 
+ import type { IBusinessHourType } from './AbstractBusinessHour';
+ import { AbstractBusinessHourType } from './AbstractBusinessHour';
+@@ -23,7 +23,7 @@
+ 			return businessHourData;
+ 		}
+ 		businessHourData.timezone = {
+-			name: timezoneName || moment.tz.guess(),
++			name: timezoneName || Intl.DateTimeFormat().resolvedOptions().timeZone,
+ 			utc: this.getUTCFromTimezone(timezoneName),
+ 		};
+ 		await this.baseSaveBusinessHour(businessHourData);
+diff -ruN audit5/app/livechat/server/business-hour/Helper.ts audit5-patched/app/livechat/server/business-hour/Helper.ts
+--- audit5/app/livechat/server/business-hour/Helper.ts	2026-03-25 17:54:15
++++ audit5-patched/app/livechat/server/business-hour/Helper.ts	2026-03-25 18:49:11
+@@ -1,7 +1,7 @@
+ import type { ILivechatBusinessHour } from '@rocket.chat/core-typings';
+ import { ILivechatAgentStatus, LivechatBusinessHourTypes } from '@rocket.chat/core-typings';
+ import { LivechatBusinessHours, Users } from '@rocket.chat/models';
+-import moment from 'moment';
++import { format } from 'date-fns';
+ 
+ import { createDefaultBusinessHourRow } from './LivechatBusinessHours';
+ import { filterBusinessHoursThatMustBeOpened } from './filterBusinessHoursThatMustBeOpened';
+@@ -12,7 +12,7 @@
+ 
+ export const filterBusinessHoursThatMustBeOpenedByDay = async (
+ 	businessHours: ILivechatBusinessHour[],
+-	day: string, // Format: moment.format('dddd')
++	day: string, // Format: day name, e.g. 'Monday'
+ ): Promise<Pick<ILivechatBusinessHour, '_id' | 'type'>[]> => {
+ 	return filterBusinessHoursThatMustBeOpened(
+ 		businessHours.filter((businessHour) =>
+@@ -24,8 +24,7 @@
+ export const openBusinessHourDefault = async (): Promise<void> => {
+ 	try {
+ 		await Users.removeBusinessHoursFromAllUsers();
+-		const currentTime = moment(moment().format('dddd:HH:mm'), 'dddd:HH:mm');
+-		const day = currentTime.format('dddd');
++		const day = format(new Date(), 'EEEE');
+ 		const activeBusinessHours = await LivechatBusinessHours.findDefaultActiveAndOpenBusinessHoursByDay(day, {
+ 			projection: {
+ 				workHours: 1,
+diff -ruN audit5/app/livechat/server/business-hour/LivechatBusinessHours.ts audit5-patched/app/livechat/server/business-hour/LivechatBusinessHours.ts
+--- audit5/app/livechat/server/business-hour/LivechatBusinessHours.ts	2026-03-25 17:54:15
++++ audit5-patched/app/livechat/server/business-hour/LivechatBusinessHours.ts	2026-03-25 18:49:11
+@@ -1,6 +1,7 @@
+ import type { ILivechatBusinessHour } from '@rocket.chat/core-typings';
+ import { LivechatBusinessHourTypes } from '@rocket.chat/core-typings';
+-import moment from 'moment-timezone';
++import { format } from 'date-fns';
++import { fromZonedTime } from 'date-fns-tz';
+ import { ObjectId } from 'mongodb';
+ 
+ export const createDefaultBusinessHourRow = (): ILivechatBusinessHour => {
+@@ -17,31 +18,31 @@
+ 			start: {
+ 				time: '08:00',
+ 				utc: {
+-					dayOfWeek: moment(`${day}:08:00`, 'dddd:HH:mm').utc().format('dddd'),
+-					time: moment(`${day}:08:00`, 'dddd:HH:mm').utc().format('HH:mm'),
++					dayOfWeek: format(fromZonedTime(new Date(new Date().setHours(8, 0, 0, 0)), Intl.DateTimeFormat().resolvedOptions().timeZone), 'EEEE'),
++					time: format(fromZonedTime(new Date(new Date().setHours(8, 0, 0, 0)), Intl.DateTimeFormat().resolvedOptions().timeZone), 'HH:mm'),
+ 				},
+ 				cron: {
+-					dayOfWeek: moment(`${day}:08:00`, 'dddd:HH:mm').format('dddd'),
+-					time: moment(`${day}:08:00`, 'dddd:HH:mm').format('HH:mm'),
++					dayOfWeek: day,
++					time: '08:00',
+ 				},
+ 			},
+ 			finish: {
+ 				time: '20:00',
+ 				utc: {
+-					dayOfWeek: moment(`${day}:20:00`, 'dddd:HH:mm').utc().format('dddd'),
+-					time: moment(`${day}:20:00`, 'dddd:HH:mm').utc().format('HH:mm'),
++					dayOfWeek: format(fromZonedTime(new Date(new Date().setHours(20, 0, 0, 0)), Intl.DateTimeFormat().resolvedOptions().timeZone), 'EEEE'),
++					time: format(fromZonedTime(new Date(new Date().setHours(20, 0, 0, 0)), Intl.DateTimeFormat().resolvedOptions().timeZone), 'HH:mm'),
+ 				},
+ 				cron: {
+-					dayOfWeek: moment(`${day}:20:00`, 'dddd:HH:mm').format('dddd'),
+-					time: moment(`${day}:20:00`, 'dddd:HH:mm').format('HH:mm'),
++					dayOfWeek: day,
++					time: '20:00',
+ 				},
+ 			},
+ 			code: index + 1,
+ 			open: !closedDays.includes(day),
+ 		})),
+ 		timezone: {
+-			name: moment.tz.guess(),
+-			utc: String(moment().utcOffset() / 60),
++			name: Intl.DateTimeFormat().resolvedOptions().timeZone,
++			utc: String(-(new Date().getTimezoneOffset() / 60)),
+ 		},
+ 	};
+ };
+diff -ruN audit5/app/livechat/server/business-hour/filterBusinessHoursThatMustBeOpened.ts audit5-patched/app/livechat/server/business-hour/filterBusinessHoursThatMustBeOpened.ts
+--- audit5/app/livechat/server/business-hour/filterBusinessHoursThatMustBeOpened.ts	2026-03-25 17:54:15
++++ audit5-patched/app/livechat/server/business-hour/filterBusinessHoursThatMustBeOpened.ts	2026-03-25 18:49:11
+@@ -1,10 +1,27 @@
+ import type { ILivechatBusinessHour } from '@rocket.chat/core-typings';
+-import moment from 'moment';
++import { addWeeks, differenceInDays, format, isAfter, isBefore, subWeeks } from 'date-fns';
+ 
++const dayIndex: Record<string, number> = {
++	Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3,
++	Thursday: 4, Friday: 5, Saturday: 6,
++};
++
++const parseDayTime = (dayOfWeek: string, time: string): Date => {
++	const now = new Date();
++	const target = dayIndex[dayOfWeek] ?? 0;
++	const current = now.getDay();
++	const diff = target - current;
++	const date = new Date(now);
++	date.setDate(date.getDate() + diff);
++	const [h, m, s] = time.split(':').map(Number);
++	date.setHours(h, m, s ?? 0, 0);
++	return date;
++};
++
+ export const filterBusinessHoursThatMustBeOpened = async (
+ 	businessHours: ILivechatBusinessHour[],
+ ): Promise<Pick<ILivechatBusinessHour, '_id' | 'type'>[]> => {
+-	const currentTime = moment(moment().format('dddd:HH:mm:ss'), 'dddd:HH:mm:ss');
++	const currentTime = new Date();
+ 
+ 	return businessHours
+ 		.filter(
+@@ -13,36 +30,27 @@
+ 				businessHour.workHours
+ 					.filter((hour) => hour.open)
+ 					.some((hour) => {
+-						const localTimeStart = moment(`${hour.start.cron.dayOfWeek}:${hour.start.cron.time}:00`, 'dddd:HH:mm:ss');
+-						const localTimeFinish = moment(`${hour.finish.cron.dayOfWeek}:${hour.finish.cron.time}:00`, 'dddd:HH:mm:ss');
++						let localTimeStart = parseDayTime(hour.start.cron.dayOfWeek, `${hour.start.cron.time}:00`);
++						let localTimeFinish = parseDayTime(hour.finish.cron.dayOfWeek, `${hour.finish.cron.time}:00`);
+ 
+-						/** because we use `dayOfWeek` moment decides if saturday/sunday belongs to the current week or the next one, this is a bit
+-						 * confusing and for that reason we need this workaround
+-						 */
++						const currentDay = format(currentTime, 'EEEE');
++						const localTimeStartDay = format(localTimeStart, 'EEEE');
+ 
+-						const currentDay = currentTime.format('dddd');
+-						const localTimeStartDay = localTimeStart.format('dddd');
+-
+-						// This only works for sundays (where we can test if sunday is before saturday = something is wrong)
+-
+-						if (localTimeStart.isAfter(localTimeFinish)) {
+-							localTimeStart.subtract(1, 'week');
++						if (isAfter(localTimeStart, localTimeFinish)) {
++							localTimeStart = subWeeks(localTimeStart, 1);
+ 						}
+-						if (localTimeFinish.isBefore(localTimeStart)) {
+-							localTimeFinish.add(1, 'week');
++						if (isBefore(localTimeFinish, localTimeStart)) {
++							localTimeFinish = addWeeks(localTimeFinish, 1);
+ 						}
+ 
+-						// During Saturday, if current weekday is the same but the start time is after the current time, we need to subtract a week
+-						if (currentDay === localTimeStartDay && localTimeStart.diff(currentTime, 'days') > 0) {
+-							localTimeStart.subtract(1, 'week');
++						if (currentDay === localTimeStartDay && differenceInDays(localTimeStart, currentTime) > 0) {
++							localTimeStart = subWeeks(localTimeStart, 1);
+ 						}
+-
+-						// During Saturday, if current weekday is the same but the finish time is before the current time, we need to add a week
+-						if (currentDay === localTimeStartDay && localTimeFinish.diff(currentTime, 'days') < 0) {
+-							localTimeFinish.add(1, 'week');
++						if (currentDay === localTimeStartDay && differenceInDays(localTimeFinish, currentTime) < 0) {
++							localTimeFinish = addWeeks(localTimeFinish, 1);
+ 						}
+ 
+-						return currentTime.isSameOrAfter(localTimeStart) && currentTime.isBefore(localTimeFinish);
++						return (currentTime >= localTimeStart) && isBefore(currentTime, localTimeFinish);
+ 					}),
+ 		)
+ 		.map((businessHour) => ({
+diff -ruN audit5/app/livechat/server/hooks/markRoomResponded.ts audit5-patched/app/livechat/server/hooks/markRoomResponded.ts
+--- audit5/app/livechat/server/hooks/markRoomResponded.ts	2026-03-25 17:54:15
++++ audit5-patched/app/livechat/server/hooks/markRoomResponded.ts	2026-03-25 18:49:11
+@@ -2,7 +2,7 @@
+ import { isEditedMessage, isMessageFromVisitor, isSystemMessage } from '@rocket.chat/core-typings';
+ import type { Updater } from '@rocket.chat/models';
+ import { LivechatRooms, LivechatContacts, LivechatInquiry } from '@rocket.chat/models';
+-import moment from 'moment';
++import { differenceInSeconds } from 'date-fns';
+ 
+ import { callbacks } from '../../../../server/lib/callbacks';
+ import { notifyOnLivechatInquiryChanged } from '../../../lib/server/lib/notifyListener';
+@@ -23,7 +23,7 @@
+ 		return;
+ 	}
+ 
+-	const monthYear = moment().format('YYYY-MM');
++	const monthYear = format(new Date(), 'yyyy-MM');
+ 	const isContactActive = await LivechatContacts.isContactActiveOnPeriod({ visitorId: room.v._id, source: room.source }, monthYear);
+ 
+ 	// Case: agent answers & visitor is not active, we mark visitor as active
+diff -ruN audit5/app/livechat/server/hooks/processRoomAbandonment.ts audit5-patched/app/livechat/server/hooks/processRoomAbandonment.ts
+--- audit5/app/livechat/server/hooks/processRoomAbandonment.ts	2026-03-25 17:54:15
++++ audit5-patched/app/livechat/server/hooks/processRoomAbandonment.ts	2026-03-25 18:49:11
+@@ -1,7 +1,7 @@
+ import type { IOmnichannelRoom, IMessage, IBusinessHourWorkHour, ILivechatDepartment } from '@rocket.chat/core-typings';
+ import { isOmnichannelRoom } from '@rocket.chat/core-typings';
+ import { LivechatBusinessHours, LivechatDepartment, Messages, LivechatRooms } from '@rocket.chat/models';
+-import moment from 'moment';
++import { addDays, differenceInDays, differenceInSeconds, format, isAfter, isBefore, startOfDay } from 'date-fns';
+ 
+ import { callbacks } from '../../../../server/lib/callbacks';
+ import { settings } from '../../../settings/server';
+@@ -9,7 +9,7 @@
+ import type { CloseRoomParams } from '../lib/localTypes';
+ 
+ export const getSecondsWhenOfficeHoursIsDisabled = (room: IOmnichannelRoom, agentLastMessage: IMessage) =>
+-	moment(new Date(room.closedAt || new Date())).diff(moment(new Date(agentLastMessage.ts)), 'seconds');
++	differenceInSeconds(new Date(room.closedAt || new Date()), new Date(agentLastMessage.ts));
+ 
+ export const parseDays = (
+ 	acc: Record<string, { start: { day: string; time: string }; finish: { day: string; time: string }; open: boolean }>,
+@@ -50,59 +50,57 @@
+ 	}
+ 
+ 	let totalSeconds = 0;
+-	const endOfConversation = moment.utc(new Date(room.closedAt || new Date()));
+-	const startOfInactivity = moment.utc(new Date(agentLastMessage.ts));
+-	const daysOfInactivity = endOfConversation.clone().startOf('day').diff(startOfInactivity.clone().startOf('day'), 'days');
+-	const inactivityDay = moment.utc(new Date(agentLastMessage.ts));
++	const endOfConversation = new Date(room.closedAt || new Date());
++	const startOfInactivity = new Date(agentLastMessage.ts);
++	const daysOfInactivity = differenceInDays(startOfDay(endOfConversation), startOfDay(startOfInactivity));
++	let inactivityDay = new Date(agentLastMessage.ts);
+ 
+ 	for (let index = 0; index <= daysOfInactivity; index++) {
+-		const today = inactivityDay.clone().format('dddd');
++		const today = format(inactivityDay, 'EEEE');
+ 		const officeDay = officeDays[today];
+ 
+ 		if (!officeDay) {
+-			inactivityDay.add(1, 'days');
++			inactivityDay = addDays(inactivityDay, 1);
+ 			continue;
+ 		}
+ 
+ 		if (!officeDay.open) {
+-			inactivityDay.add(1, 'days');
++			inactivityDay = addDays(inactivityDay, 1);
+ 			continue;
+ 		}
+ 
+ 		if (!officeDay?.start?.time || !officeDay?.finish?.time) {
+-			inactivityDay.add(1, 'days');
++			inactivityDay = addDays(inactivityDay, 1);
+ 			continue;
+ 		}
+ 
+ 		const [officeStartHour, officeStartMinute] = officeDay.start.time.split(':');
+ 		const [officeCloseHour, officeCloseMinute] = officeDay.finish.time.split(':');
+ 		// We should only take in consideration the time where the office is open and the conversation was inactive
+-		const todayStartOfficeHours = inactivityDay
+-			.clone()
+-			.set({ hour: parseInt(officeStartHour, 10), minute: parseInt(officeStartMinute, 10) });
+-		const todayEndOfficeHours = inactivityDay.clone().set({ hour: parseInt(officeCloseHour, 10), minute: parseInt(officeCloseMinute, 10) });
++		const todayStartOfficeHours = new Date(new Date(inactivityDay).setHours(parseInt(officeStartHour, 10), parseInt(officeStartMinute, 10), 0, 0));
++		const todayEndOfficeHours = new Date(new Date(inactivityDay).setHours(parseInt(officeCloseHour, 10), parseInt(officeCloseMinute, 10), 0, 0));
+ 
+ 		// 1: Room was inactive the whole day, we add the whole time BH is inactive
+-		if (startOfInactivity.isBefore(todayStartOfficeHours) && endOfConversation.isAfter(todayEndOfficeHours)) {
+-			totalSeconds += todayEndOfficeHours.diff(todayStartOfficeHours, 'seconds');
++		if (isBefore(startOfInactivity, todayStartOfficeHours) && isAfter(endOfConversation, todayEndOfficeHours)) {
++			totalSeconds += differenceInSeconds(todayEndOfficeHours, todayStartOfficeHours);
+ 		}
+ 
+ 		// 2: Room was inactive before start but was closed before end of BH, we add the inactive time
+-		if (startOfInactivity.isBefore(todayStartOfficeHours) && endOfConversation.isBefore(todayEndOfficeHours)) {
+-			totalSeconds += endOfConversation.diff(todayStartOfficeHours, 'seconds');
++		if (isBefore(startOfInactivity, todayStartOfficeHours) && isBefore(endOfConversation, todayEndOfficeHours)) {
++			totalSeconds += differenceInSeconds(endOfConversation, todayStartOfficeHours);
+ 		}
+ 
+ 		// 3: Room was inactive after start and ended after end of BH, we add the inactive time
+-		if (startOfInactivity.isAfter(todayStartOfficeHours) && endOfConversation.isAfter(todayEndOfficeHours)) {
+-			totalSeconds += todayEndOfficeHours.diff(startOfInactivity, 'seconds');
++		if (isAfter(startOfInactivity, todayStartOfficeHours) && isAfter(endOfConversation, todayEndOfficeHours)) {
++			totalSeconds += differenceInSeconds(todayEndOfficeHours, startOfInactivity);
+ 		}
+ 
+ 		// 4: Room was inactive after start and before end of BH, we add the inactive time
+-		if (startOfInactivity.isAfter(todayStartOfficeHours) && endOfConversation.isBefore(todayEndOfficeHours)) {
+-			totalSeconds += endOfConversation.diff(startOfInactivity, 'seconds');
++		if (isAfter(startOfInactivity, todayStartOfficeHours) && isBefore(endOfConversation, todayEndOfficeHours)) {
++			totalSeconds += differenceInSeconds(endOfConversation, startOfInactivity);
+ 		}
+ 
+-		inactivityDay.add(1, 'days');
++		inactivityDay = addDays(inactivityDay, 1);
+ 	}
+ 	return totalSeconds;
+ };
+diff -ruN audit5/app/livechat/server/lib/analytics/dashboards.ts audit5-patched/app/livechat/server/lib/analytics/dashboards.ts
+--- audit5/app/livechat/server/lib/analytics/dashboards.ts	2026-03-25 17:54:16
++++ audit5-patched/app/livechat/server/lib/analytics/dashboards.ts	2026-03-25 18:49:11
+@@ -2,7 +2,7 @@
+ import type { IUser } from '@rocket.chat/core-typings';
+ import { LivechatRooms, Users, LivechatVisitors, LivechatAgentActivity } from '@rocket.chat/models';
+ import mem from 'mem';
+-import moment from 'moment';
++import { format, subDays } from 'date-fns';
+ 
+ import { secondsToHHMMSS } from '../../../../../lib/utils/secondsToHHMMSS';
+ import { settings } from '../../../../settings/server';
+@@ -91,7 +91,7 @@
+ 	// TODO: check type of date
+ 	const averageOfAvailableServiceTime = (
+ 		await LivechatAgentActivity.findAllAverageAvailableServiceTime({
+-			date: parseInt(moment(start).format('YYYYMMDD')) as any,
++			date: parseInt(format(new Date(start), 'yyyyMMdd')) as any,
+ 			departmentId,
+ 		})
+ 	)[0];
+diff -ruN audit5/app/livechat/server/lib/sendTranscript.ts audit5-patched/app/livechat/server/lib/sendTranscript.ts
+--- audit5/app/livechat/server/lib/sendTranscript.ts	2026-03-25 17:54:16
++++ audit5-patched/app/livechat/server/lib/sendTranscript.ts	2026-03-25 18:49:11
+@@ -16,7 +16,7 @@
+ import createDOMPurify from 'dompurify';
+ import { JSDOM } from 'jsdom';
+ import { Meteor } from 'meteor/meteor';
+-import moment from 'moment-timezone';
++import { formatInTimeZone } from 'date-fns-tz';
+ 
+ import { callbacks } from '../../../../server/lib/callbacks';
+ import { i18n } from '../../../../server/lib/i18n';
+@@ -151,7 +151,7 @@
+ 			}
+ 		}
+ 
+-		const datetime = moment.tz(message.ts, timezone).locale(userLanguage).format('LLL');
++		const datetime = formatInTimeZone(new Date(message.ts), timezone, 'PPp');
+ 		const singleMessage = `
+ 			<p><strong>${escapeHtml(author)}</strong>  <em>${escapeHtml(datetime)}</em></p>
+ 			<p>${messageContent}</p>
+diff -ruN audit5/app/livechat/server/statistics/LivechatAgentActivityMonitor.ts audit5-patched/app/livechat/server/statistics/LivechatAgentActivityMonitor.ts
+--- audit5/app/livechat/server/statistics/LivechatAgentActivityMonitor.ts	2026-03-25 17:54:16
++++ audit5-patched/app/livechat/server/statistics/LivechatAgentActivityMonitor.ts	2026-03-25 18:50:01
+@@ -2,12 +2,12 @@
+ import { cronJobs } from '@rocket.chat/cron';
+ import { LivechatAgentActivity, Sessions, Users } from '@rocket.chat/models';
+ import { Meteor } from 'meteor/meteor';
+-import moment from 'moment';
++import { differenceInSeconds, format, startOfDay } from 'date-fns';
+ 
+ import { callbacks } from '../../../../server/lib/callbacks';
+ 
+ const formatDate = (dateTime = new Date()): { date: number } => ({
+-	date: parseInt(moment(dateTime).format('YYYYMMDD')),
++	date: parseInt(format(new Date(dateTime), 'yyyyMMdd')),
+ });
+ 
+ export class LivechatAgentActivityMonitor {
+@@ -65,13 +65,13 @@
+ 	async _updateActiveSessions(): Promise<void> {
+ 		const openLivechatAgentSessions = LivechatAgentActivity.findOpenSessions();
+ 
+-		const today = moment(new Date());
++		const today = new Date(new Date());
+ 		const startedAt = new Date(today.year(), today.month(), today.date());
+ 		for await (const session of openLivechatAgentSessions) {
+-			const startDate = moment(session.lastStartedAt);
++			const startDate = new Date(session.lastStartedAt);
+ 			const stoppedAt = new Date(startDate.year(), startDate.month(), startDate.date(), 23, 59, 59);
+-			const data = { ...formatDate(startDate.toDate()), agentId: session.agentId };
+-			const availableTime = moment(stoppedAt).diff(moment(new Date(session.lastStartedAt)), 'seconds');
++			const data = { ...formatDate(startDate), agentId: session.agentId };
++			const availableTime = differenceInSeconds(new Date(stoppedAt), new Date(session.lastStartedAt));
+ 
+ 			await Promise.all([
+ 				LivechatAgentActivity.updateLastStoppedAt({ ...data, availableTime, lastStoppedAt: stoppedAt }),
+@@ -152,7 +152,7 @@
+ 		}
+ 
+ 		const stoppedAt = new Date();
+-		const availableTime = moment(stoppedAt).diff(moment(new Date(livechatSession.lastStartedAt)), 'seconds');
++		const availableTime = differenceInSeconds(new Date(stoppedAt), new Date(livechatSession.lastStartedAt));
+ 
+ 		await Promise.all([
+ 			LivechatAgentActivity.updateLastStoppedAt({ agentId, date, availableTime, lastStoppedAt: stoppedAt }),
+diff -ruN audit5/app/smarsh-connector/server/functions/generateEml.ts audit5-patched/app/smarsh-connector/server/functions/generateEml.ts
+--- audit5/app/smarsh-connector/server/functions/generateEml.ts	2026-03-25 17:54:16
++++ audit5-patched/app/smarsh-connector/server/functions/generateEml.ts	2026-03-25 18:49:11
+@@ -1,7 +1,8 @@
+ import { MessageTypes } from '@rocket.chat/message-types';
+ import { Messages, SmarshHistory, Users, Rooms } from '@rocket.chat/models';
+ import { Meteor } from 'meteor/meteor';
+-import moment from 'moment-timezone';
++import { differenceInMinutes } from 'date-fns';
++import { formatInTimeZone } from 'date-fns-tz';
+ 
+ import { sendEmail } from './sendEmail';
+ import { i18n } from '../../../../server/lib/i18n';
+@@ -51,7 +52,7 @@
+ 				users: [],
+ 				msgs: 0,
+ 				files: [],
+-				time: smarshHistory ? moment(date).diff(moment(smarshHistory.lastRan), 'minutes') : moment(date).diff(moment(room.ts), 'minutes'),
++				time: smarshHistory ? differenceInMinutes(date, new Date(smarshHistory.lastRan)) : differenceInMinutes(date, new Date(room.ts)),
+ 				room: room.name ? `#${room.name}` : `Direct Message Between: ${room?.usernames?.join(' & ')}`,
+ 			};
+ 
+@@ -62,7 +63,7 @@
+ 
+ 				// The timestamp
+ 				rows.push(open20td);
+-				rows.push(moment(message.ts).tz(timeZone).format('YYYY-MM-DD HH-mm-ss z'));
++				rows.push(formatInTimeZone(new Date(message.ts), timeZone, 'yyyy-MM-dd HH-mm-ss zzz'));
+ 				rows.push(closetd);
+ 
+ 				// The sender
+diff -ruN audit5/app/statistics/server/lib/statistics.ts audit5-patched/app/statistics/server/lib/statistics.ts
+--- audit5/app/statistics/server/lib/statistics.ts	2026-03-25 17:54:16
++++ audit5-patched/app/statistics/server/lib/statistics.ts	2026-03-25 18:49:11
+@@ -29,7 +29,7 @@
+ 	AbacAttributes,
+ } from '@rocket.chat/models';
+ import { MongoInternals } from 'meteor/mongo';
+-import moment from 'moment';
++import { format, subDays } from 'date-fns';
+ 
+ import { getAppsStatistics } from './getAppsStatistics';
+ import { getContactVerificationStatistics } from './getContactVerificationStatistics';
+@@ -246,29 +246,29 @@
+ 		);
+ 
+ 		const defaultValue = { contactsCount: 0, conversationsCount: 0, sources: [] };
+-		const billablePeriod = moment.utc().format('YYYY-MM');
++		const billablePeriod = format(new Date(), 'yyyy-MM');
+ 		statsPms.push(
+ 			LivechatRooms.getMACStatisticsForPeriod(billablePeriod).then(([result]) => {
+ 				statistics.omnichannelContactsBySource = result || defaultValue;
+ 			}),
+ 		);
+ 
+-		const monthAgo = moment.utc().subtract(30, 'days').toDate();
+-		const today = moment.utc().toDate();
++		const monthAgo = subDays(new Date(), 30);
++		const today = new Date();
+ 		statsPms.push(
+ 			LivechatRooms.getMACStatisticsBetweenDates(monthAgo, today).then(([result]) => {
+ 				statistics.uniqueContactsOfLastMonth = result || defaultValue;
+ 			}),
+ 		);
+ 
+-		const weekAgo = moment.utc().subtract(7, 'days').toDate();
++		const weekAgo = subDays(new Date(), 7);
+ 		statsPms.push(
+ 			LivechatRooms.getMACStatisticsBetweenDates(weekAgo, today).then(([result]) => {
+ 				statistics.uniqueContactsOfLastWeek = result || defaultValue;
+ 			}),
+ 		);
+ 
+-		const yesterday = moment.utc().subtract(1, 'days').toDate();
++		const yesterday = subDays(new Date(), 1);
+ 		statsPms.push(
+ 			LivechatRooms.getMACStatisticsBetweenDates(yesterday, today).then(([result]) => {
+ 				statistics.uniqueContactsOfYesterday = result || defaultValue;
+diff -ruN audit5/app/utils/server/lib/getTimezone.ts audit5-patched/app/utils/server/lib/getTimezone.ts
+--- audit5/app/utils/server/lib/getTimezone.ts	2026-03-25 17:54:16
++++ audit5-patched/app/utils/server/lib/getTimezone.ts	2026-03-25 18:49:11
+@@ -1,4 +1,4 @@
+-import moment from 'moment-timezone';
++import { formatInTimeZone } from 'date-fns-tz';
+ 
+ import { settings } from '../../../settings/server';
+ 
+@@ -12,10 +12,10 @@
+ 
+ const guessTimezoneFromOffset = (offset?: string | number): string => {
+ 	if (!offset) {
+-		return moment.tz.guess();
++		return Intl.DateTimeFormat().resolvedOptions().timeZone;
+ 	}
+ 
+-	return moment.tz.names().find((tz) => padOffset(offset) === moment.tz(tz).format('Z').toString()) || moment.tz.guess();
++	return Intl.supportedValuesOf('timeZone').find((tz) => padOffset(offset) === formatInTimeZone(new Date(), tz, 'xxx')) || Intl.DateTimeFormat().resolvedOptions().timeZone;
+ };
+ 
+ export const getTimezone = (user?: { utcOffset?: string | number } | null): string => {
+@@ -27,6 +27,6 @@
+ 		case 'user':
+ 			return guessTimezoneFromOffset(user?.utcOffset);
+ 		default:
+-			return moment.tz.guess();
++			return Intl.DateTimeFormat().resolvedOptions().timeZone;
+ 	}
+ };
+diff -ruN audit5/client/components/dashboards/periods.ts audit5-patched/client/components/dashboards/periods.ts
+--- audit5/client/components/dashboards/periods.ts	2026-03-25 17:54:16
++++ audit5-patched/client/components/dashboards/periods.ts	2026-03-25 18:49:11
+@@ -1,32 +1,48 @@
+ import type { TranslationKey } from '@rocket.chat/ui-contexts';
+-import type { DurationInputArg1, DurationInputArg2 } from 'moment';
+-import moment from 'moment';
++import { startOfDay, startOfWeek, startOfMonth, startOfYear, endOfDay, subDays, subMonths } from 'date-fns';
+ 
+ const label = (translationKey: TranslationKey): readonly [translationKey: TranslationKey] => [translationKey];
+ 
++type StartOfUnit = 'day' | 'year' | 'month' | 'week';
++
++const startOfUnit = (date: Date, unit: StartOfUnit): Date => {
++	switch (unit) {
++		case 'day': return startOfDay(date);
++		case 'week': return startOfWeek(date);
++		case 'month': return startOfMonth(date);
++		case 'year': return startOfYear(date);
++	}
++};
++
++const subtractAmount = (date: Date, amount: number, unit: string): Date => {
++	switch (unit) {
++		case 'days': return subDays(date, amount);
++		case 'months': return subMonths(date, amount);
++		default: return subDays(date, amount);
++	}
++};
++
+ export const getClosedPeriod =
+ 	({
+ 		startOf,
+ 		subtract,
+ 	}: {
+-		startOf: 'day' | 'year' | 'month' | 'week';
+-		subtract?: { amount: DurationInputArg1; unit: DurationInputArg2 };
++		startOf: StartOfUnit;
++		subtract?: { amount: number; unit: string };
+ 	}): ((utc: boolean) => {
+ 		start: Date;
+ 		end: Date;
+ 	}) =>
+-	(utc): { start: Date; end: Date } => {
+-		const start = utc ? moment().utc() : moment();
+-		const end = utc ? moment().utc() : moment();
++	(_utc): { start: Date; end: Date } => {
++		let start = new Date();
+ 
+ 		if (subtract) {
+-			const { amount, unit } = subtract;
+-			start.subtract(amount, unit);
++			start = subtractAmount(start, subtract.amount, subtract.unit);
+ 		}
+ 
+ 		return {
+-			start: start.startOf(startOf).toDate(),
+-			end: end.endOf('day').toDate(),
++			start: startOfUnit(start, startOf),
++			end: endOfDay(new Date()),
+ 		};
+ 	};
+ 
+diff -ruN audit5/client/components/message/toolbar/useEditMessageAction.ts audit5-patched/client/components/message/toolbar/useEditMessageAction.ts
+--- audit5/client/components/message/toolbar/useEditMessageAction.ts	2026-03-25 17:54:16
++++ audit5-patched/client/components/message/toolbar/useEditMessageAction.ts	2026-03-25 18:49:11
+@@ -1,7 +1,7 @@
+ import { isRoomFederated } from '@rocket.chat/core-typings';
+ import type { IRoom, IMessage, ISubscription } from '@rocket.chat/core-typings';
+ import { usePermission, useSetting, useUser } from '@rocket.chat/ui-contexts';
+-import moment from 'moment';
++import { differenceInMinutes } from 'date-fns';
+ 
+ import type { MessageActionConfig } from '../../../../app/ui-utils/client/lib/MessageAction';
+ import { useChat } from '../../../views/room/contexts/ChatContext';
+@@ -32,8 +32,8 @@
+ 		}
+ 
+ 		if (!canBypassBlockTimeLimit && blockEditInMinutes) {
+-			const msgTs = message.ts ? moment(message.ts) : undefined;
+-			const currentTsDiff = msgTs ? moment().diff(msgTs, 'minutes') : undefined;
++			const msgTs = message.ts ? new Date(message.ts) : undefined;
++			const currentTsDiff = msgTs ? differenceInMinutes(new Date(), msgTs) : undefined;
+ 			return typeof currentTsDiff === 'number' && currentTsDiff < blockEditInMinutes;
+ 		}
+ 
+diff -ruN audit5/client/hooks/useFormatDate.ts audit5-patched/client/hooks/useFormatDate.ts
+--- audit5/client/hooks/useFormatDate.ts	2026-03-25 17:54:16
++++ audit5-patched/client/hooks/useFormatDate.ts	2026-03-25 18:49:11
+@@ -1,8 +1,8 @@
+ import { useSetting } from '@rocket.chat/ui-contexts';
+-import moment from 'moment';
++import { format } from 'date-fns';
+ import { useCallback } from 'react';
+ 
+ export const useFormatDate = () => {
+-	const format = useSetting('Message_DateFormat');
+-	return useCallback((time: string | Date | number) => moment(time).format(String(format)), [format]);
++	const dateFormat = useSetting('Message_DateFormat');
++	return useCallback((time: string | Date | number) => format(new Date(time), String(dateFormat)), [dateFormat]);
+ };
+diff -ruN audit5/client/hooks/useFormatDateAndTime.ts audit5-patched/client/hooks/useFormatDateAndTime.ts
+--- audit5/client/hooks/useFormatDateAndTime.ts	2026-03-25 17:54:16
++++ audit5-patched/client/hooks/useFormatDateAndTime.ts	2026-03-25 18:49:11
+@@ -1,6 +1,5 @@
+ import { useUserPreference, useSetting } from '@rocket.chat/ui-contexts';
+-import type { MomentInput } from 'moment';
+-import moment from 'moment';
++import { format } from 'date-fns';
+ import { useCallback } from 'react';
+ 
+ type UseFormatDateAndTimeParams = {
+@@ -9,20 +8,19 @@
+ 
+ export const useFormatDateAndTime = ({ withSeconds }: UseFormatDateAndTimeParams = {}) => {
+ 	const clockMode = useUserPreference('clockMode');
+-	const format = useSetting('Message_TimeAndDateFormat', 'LLL');
++	const dateFormat = useSetting('Message_TimeAndDateFormat', 'LLL');
+ 
+ 	return useCallback(
+-		(time: MomentInput) => {
++		(time: string | Date | number) => {
+ 			switch (clockMode) {
+ 				case 1:
+-					return moment(time).format(withSeconds ? 'MMMM D, Y h:mm:ss A' : 'MMMM D, Y h:mm A');
++					return format(new Date(time), withSeconds ? 'MMMM d, yyyy h:mm:ss a' : 'MMMM d, yyyy h:mm a');
+ 				case 2:
+-					return moment(time).format(withSeconds ? 'MMMM D, Y H:mm:ss' : 'MMMM D, Y H:mm');
+-
++					return format(new Date(time), withSeconds ? 'MMMM d, yyyy HH:mm:ss' : 'MMMM d, yyyy HH:mm');
+ 				default:
+-					return moment(time).format(withSeconds ? 'L LTS' : format);
++					return format(new Date(time), withSeconds ? 'P pp' : String(dateFormat));
+ 			}
+ 		},
+-		[clockMode, format, withSeconds],
++		[clockMode, dateFormat, withSeconds],
+ 	);
+ };
+diff -ruN audit5/client/hooks/useFormatTime.ts audit5-patched/client/hooks/useFormatTime.ts
+--- audit5/client/hooks/useFormatTime.ts	2026-03-25 17:54:16
++++ audit5-patched/client/hooks/useFormatTime.ts	2026-03-25 18:49:11
+@@ -1,26 +1,24 @@
+ import { useUserPreference, useSetting } from '@rocket.chat/ui-contexts';
+-import type { MomentInput } from 'moment';
+-import moment from 'moment';
++import { format } from 'date-fns';
+ import { useCallback } from 'react';
+ 
+-const dayFormat = ['h:mm A', 'H:mm'] as const;
++const dayFormat = ['h:mm a', 'HH:mm'] as const;
+ 
+ export const useFormatTime = () => {
+ 	const clockMode = useUserPreference<1 | 2>('clockMode');
+-	const format = useSetting('Message_TimeFormat', 'LT');
+-	const sameDay = clockMode !== undefined ? dayFormat[clockMode - 1] : format;
++	const timeFormat = useSetting('Message_TimeFormat', 'LT');
++	const sameDay = clockMode !== undefined ? dayFormat[clockMode - 1] : String(timeFormat);
+ 
+ 	return useCallback(
+-		(time: MomentInput) => {
++		(time: string | Date | number) => {
+ 			switch (clockMode) {
+ 				case 1:
+ 				case 2:
+-					return moment(time).format(sameDay);
+-
++					return format(new Date(time), sameDay);
+ 				default:
+-					return moment(time).format(format);
++					return format(new Date(time), String(timeFormat));
+ 			}
+ 		},
+-		[clockMode, format, sameDay],
++		[clockMode, timeFormat, sameDay],
+ 	);
+ };
+diff -ruN audit5/client/hooks/useFormattedRelativeTime.ts audit5-patched/client/hooks/useFormattedRelativeTime.ts
+--- audit5/client/hooks/useFormattedRelativeTime.ts	2026-03-25 17:54:16
++++ audit5-patched/client/hooks/useFormattedRelativeTime.ts	2026-03-25 18:49:11
+@@ -1,14 +1,8 @@
+-import moment from 'moment';
++import { formatDuration, intervalToDuration } from 'date-fns';
+ import { useMemo } from 'react';
+ 
+ export const useFormattedRelativeTime = (timeMs: number): string =>
+ 	useMemo(() => {
+-		moment.relativeTimeThreshold('s', 60);
+-		moment.relativeTimeThreshold('ss', 0);
+-		moment.relativeTimeThreshold('m', 60);
+-		moment.relativeTimeThreshold('h', 24);
+-		moment.relativeTimeThreshold('d', 31);
+-		moment.relativeTimeThreshold('M', 12);
+-
+-		return moment.duration(timeMs).humanize();
++		const duration = intervalToDuration({ start: 0, end: Math.abs(timeMs) });
++		return formatDuration(duration, { format: ['years', 'months', 'days', 'hours', 'minutes'] }) || 'less than a minute';
+ 	}, [timeMs]);
+diff -ruN audit5/client/hooks/useTimeAgo.ts audit5-patched/client/hooks/useTimeAgo.ts
+--- audit5/client/hooks/useTimeAgo.ts	2026-03-25 17:54:16
++++ audit5-patched/client/hooks/useTimeAgo.ts	2026-03-25 18:49:11
+@@ -1,55 +1,50 @@
+ import { useUserPreference, useSetting } from '@rocket.chat/ui-contexts';
+-import type { MomentInput } from 'moment';
+-import moment from 'moment';
++import { format, formatRelative, isToday, isYesterday, isSameYear } from 'date-fns';
+ import { useCallback } from 'react';
+ 
+ import { t } from '../../app/utils/lib/i18n';
+ 
+-const dayFormat = ['h:mm A', 'H:mm'] as const;
++const dayFormat = ['h:mm a', 'HH:mm'] as const;
+ 
+ export const useTimeAgo = () => {
+ 	const clockMode = useUserPreference<1 | 2>('clockMode');
+ 	const timeFormat = useSetting('Message_TimeFormat', 'LT');
+-	const format = clockMode !== undefined ? dayFormat[clockMode - 1] : timeFormat;
++	const timePattern = clockMode !== undefined ? dayFormat[clockMode - 1] : String(timeFormat);
+ 	return useCallback(
+-		(time: MomentInput) => {
+-			return moment(time).calendar(null, {
+-				sameDay: format,
+-				lastDay: moment(time).calendar('lastDay').replace('LT', format),
+-				lastWeek: `dddd ${format}`,
+-				sameElse: 'LL',
+-			});
++		(time: string | Date | number) => {
++			const date = new Date(time);
++			const now = new Date();
++			if (isToday(date)) {
++				return format(date, timePattern);
++			}
++			if (isYesterday(date)) {
++				return `Yesterday ${format(date, timePattern)}`;
++			}
++			return formatRelative(date, now);
+ 		},
+-		[format],
++		[timePattern],
+ 	);
+ };
+ 
+ export const useShortTimeAgo = () => {
+ 	const clockMode = useUserPreference<1 | 2>('clockMode');
+ 	const timeFormat = useSetting('Message_TimeFormat', 'LT');
+-	const format = clockMode !== undefined ? dayFormat[clockMode - 1] : timeFormat;
++	const timePattern = clockMode !== undefined ? dayFormat[clockMode - 1] : String(timeFormat);
+ 	return useCallback(
+-		(time: MomentInput) =>
+-			moment(time).calendar(null, {
+-				sameDay: format,
+-				lastDay: `[${t('Yesterday')}]`,
+-				lastWeek: 'dddd',
+-				sameElse(this: moment.Moment, now) {
+-					/*
+-					Using only this.isBefore():
+-
+-					ERRORS:
+-						Cannot invoke an object which is possibly 'undefined'.
+-						This expression is not callable.
+-						Not all constituents of type 'CalendarSpecVal' are callable.
+-						Type 'string' has no call signatures.
+-					*/
+-					if (this.isBefore(now, 'year')) {
+-						return 'LL';
+-					}
+-					return 'MMM Do';
+-				},
+-			}),
+-		[format],
++		(time: string | Date | number) => {
++			const date = new Date(time);
++			const now = new Date();
++			if (isToday(date)) {
++				return format(date, timePattern);
++			}
++			if (isYesterday(date)) {
++				return t('Yesterday');
++			}
++			if (!isSameYear(date, now)) {
++				return format(date, 'PP');
++			}
++			return format(date, 'MMM do');
++		},
++		[timePattern],
+ 	);
+ };
+diff -ruN audit5/client/hooks/useTimeFromNow.ts audit5-patched/client/hooks/useTimeFromNow.ts
+--- audit5/client/hooks/useTimeFromNow.ts	2026-03-25 17:54:16
++++ audit5-patched/client/hooks/useTimeFromNow.ts	2026-03-25 18:49:11
+@@ -1,5 +1,5 @@
+-import moment from 'moment';
++import { formatDistanceToNow } from 'date-fns';
+ import { useCallback } from 'react';
+ 
+ export const useTimeFromNow = (withSuffix: boolean) =>
+-	useCallback((date?: Date | string) => moment(date).fromNow(!withSuffix), [withSuffix]);
++	useCallback((date?: Date | string) => formatDistanceToNow(new Date(date ?? Date.now()), { addSuffix: withSuffix }), [withSuffix]);
+diff -ruN audit5/client/hooks/useTimezoneNameList.ts audit5-patched/client/hooks/useTimezoneNameList.ts
+--- audit5/client/hooks/useTimezoneNameList.ts	2026-03-25 17:54:16
++++ audit5-patched/client/hooks/useTimezoneNameList.ts	2026-03-25 18:49:11
+@@ -1,4 +1,3 @@
+-import moment from 'moment-timezone';
+ import { useMemo } from 'react';
+ 
+-export const useTimezoneNameList = (): string[] => useMemo(() => moment.tz.names(), []);
++export const useTimezoneNameList = (): string[] => useMemo(() => Intl.supportedValuesOf('timeZone'), []);
+diff -ruN audit5/client/hooks/useTimezoneTime.ts audit5-patched/client/hooks/useTimezoneTime.ts
+--- audit5/client/hooks/useTimezoneTime.ts	2026-03-25 17:54:16
++++ audit5-patched/client/hooks/useTimezoneTime.ts	2026-03-25 18:49:11
+@@ -1,12 +1,12 @@
+-import moment from 'moment';
++import { addMinutes, format } from 'date-fns';
+ import { useState, useEffect } from 'react';
+ 
+ import { useFormatTime } from './useFormatTime';
+ 
+ export const useTimezoneTime = (offset: number, interval = 1000): string => {
+-	const [time, setTime] = useState<moment.Moment>(() => moment().utcOffset(offset));
++	const [time, setTime] = useState<Date>(() => addMinutes(new Date(), offset * 60 - new Date().getTimezoneOffset()));
+ 
+-	const format = useFormatTime();
++	const formatTime = useFormatTime();
+ 
+ 	useEffect(() => {
+ 		if (offset === undefined) {
+@@ -14,7 +14,7 @@
+ 		}
+ 
+ 		const update = (): void => {
+-			setTime(moment().utcOffset(offset));
++			setTime(addMinutes(new Date(), offset * 60 - new Date().getTimezoneOffset()));
+ 		};
+ 
+ 		const timer = setInterval(update, interval);
+@@ -25,5 +25,5 @@
+ 		};
+ 	}, [offset, interval]);
+ 
+-	return format(time);
++	return formatTime(time);
+ };
+diff -ruN audit5/client/lib/chats/data.ts audit5-patched/client/lib/chats/data.ts
+--- audit5/client/lib/chats/data.ts	2026-03-25 17:54:16
++++ audit5-patched/client/lib/chats/data.ts	2026-03-25 18:49:11
+@@ -1,7 +1,7 @@
+ import { isEncryptedMessageContent, type IEditedMessage, type IMessage, type IRoom, type ISubscription } from '@rocket.chat/core-typings';
+ import { MessageTypes } from '@rocket.chat/message-types';
+ import { Random } from '@rocket.chat/random';
+-import moment from 'moment';
++import { differenceInMinutes } from 'date-fns';
+ 
+ import type { DataAPI } from './ChatAPI';
+ import { hasAtLeastOnePermission, hasPermission } from '../../../app/authorization/client';
+@@ -77,7 +77,7 @@
+ 		const blockEditInMinutes = settings.peek('Message_AllowEditing_BlockEditInMinutes') as number | undefined;
+ 		const bypassBlockTimeLimit = hasPermission('bypass-time-limit-edit-and-delete', message.rid);
+ 
+-		const elapsedMinutes = moment().diff(message.ts, 'minutes');
++		const elapsedMinutes = differenceInMinutes(new Date(), new Date(message.ts));
+ 		if (!bypassBlockTimeLimit && elapsedMinutes && blockEditInMinutes && elapsedMinutes > blockEditInMinutes) {
+ 			return false;
+ 		}
+@@ -215,7 +215,7 @@
+ 
+ 		const blockDeleteInMinutes = settings.peek('Message_AllowDeleting_BlockDeleteInMinutes') as number | undefined;
+ 		const bypassBlockTimeLimit = hasPermission('bypass-time-limit-edit-and-delete', message.rid);
+-		const elapsedMinutes = moment().diff(message.ts, 'minutes');
++		const elapsedMinutes = differenceInMinutes(new Date(), new Date(message.ts));
+ 		const onTimeForDelete = bypassBlockTimeLimit || !blockDeleteInMinutes || !elapsedMinutes || elapsedMinutes <= blockDeleteInMinutes;
+ 
+ 		return deleteAllowed && onTimeForDelete;
+diff -ruN audit5/client/lib/utils/getDateRange.ts audit5-patched/client/lib/utils/getDateRange.ts
+--- audit5/client/lib/utils/getDateRange.ts	2026-03-25 17:54:16
++++ audit5-patched/client/lib/utils/getDateRange.ts	2026-03-25 18:49:11
+@@ -1,15 +1,13 @@
+-import moment from 'moment';
++import { startOfDay, endOfDay } from 'date-fns';
+ 
+ export const getDateRange = (): {
+ 	start: string;
+ 	end: string;
+ } => {
+-	const today = moment(new Date());
+-	const start = moment(new Date(today.year(), today.month(), today.date(), 0, 0, 0));
+-	const end = moment(new Date(today.year(), today.month(), today.date(), 23, 59, 59));
++	const now = new Date();
+ 
+ 	return {
+-		start: start.toISOString(),
+-		end: end.toISOString(),
++		start: startOfDay(now).toISOString(),
++		end: endOfDay(now).toISOString(),
+ 	};
+ };
+diff -ruN audit5/client/lib/utils/timeAgo.ts audit5-patched/client/lib/utils/timeAgo.ts
+--- audit5/client/lib/utils/timeAgo.ts	2026-03-25 17:54:16
++++ audit5-patched/client/lib/utils/timeAgo.ts	2026-03-25 18:49:11
+@@ -1,26 +1,20 @@
+ import { Tracker } from 'meteor/tracker';
+-import type { Moment, MomentInput } from 'moment';
+-import moment from 'moment';
++import { format, formatRelative, differenceInYears } from 'date-fns';
+ 
+ import { getUserPreference } from '../../../app/utils/client';
+ import { t } from '../../../app/utils/lib/i18n';
+ import { settings } from '../settings';
+ import { getUserId } from '../user';
+ 
+-const dayFormat = ['h:mm A', 'H:mm'];
++const dayFormat = ['h:mm a', 'HH:mm'];
+ 
+-export const timeAgo = (date: MomentInput) => {
++export const timeAgo = (date: string | Date | number) => {
+ 	const clockMode = Tracker.nonreactive(() => getUserPreference(getUserId(), 'clockMode', false) as number | boolean);
+ 	const messageTimeFormat = settings.peek('Message_TimeFormat');
+-	const sameDay = (typeof clockMode === 'number' ? dayFormat[clockMode - 1] : undefined) || messageTimeFormat;
++	const sameDay = (typeof clockMode === 'number' ? dayFormat[clockMode - 1] : undefined) || String(messageTimeFormat);
+ 
+-	return moment(date).calendar(null, {
+-		lastDay: `[${t('yesterday')}]`,
+-		sameDay,
+-		lastWeek: 'dddd',
+-		sameElse(this: Moment, now) {
+-			const diff = Math.ceil(this.diff(now, 'years', true));
+-			return diff < 0 ? 'MMM D YYYY' : 'MMM D';
+-		},
+-	});
++	const d = new Date(date);
++	const now = new Date();
++
++	return formatRelative(d, now);
+ };
+diff -ruN audit5/client/providers/TranslationProvider.tsx audit5-patched/client/providers/TranslationProvider.tsx
+--- audit5/client/providers/TranslationProvider.tsx	2026-03-25 17:54:16
++++ audit5-patched/client/providers/TranslationProvider.tsx	2026-03-25 18:49:11
+@@ -15,7 +15,6 @@
+ import { useMethod, useSetting, TranslationContext } from '@rocket.chat/ui-contexts';
+ import type i18next from 'i18next';
+ import I18NextHttpBackend from 'i18next-http-backend';
+-import moment from 'moment';
+ import type { ReactElement, ReactNode } from 'react';
+ import { useEffect, useMemo } from 'react';
+ import { I18nextProvider, initReactI18next, useTranslation } from 'react-i18next';
+@@ -216,8 +215,6 @@
+ 	);
+ 
+ 	useEffect(() => {
+-		if (moment.locales().includes(language.toLowerCase())) {
+-			moment.locale(language);
+ 			return;
+ 		}
+ 
+@@ -225,11 +222,9 @@
+ 
+ 		loadLocale(locale ?? language)
+ 			.then((localeSrc) => {
+-				localeSrc && Function(localeSrc).call({ moment });
+-				moment.locale(language);
++				localeSrc && Function(localeSrc).call({});
+ 			})
+ 			.catch((error) => {
+-				moment.locale('en');
+ 				console.error('Error loading moment locale:', error);
+ 			});
+ 	}, [language, loadLocale, availableLanguages]);
+diff -ruN audit5/client/startup/startup.ts audit5-patched/client/startup/startup.ts
+--- audit5/client/startup/startup.ts	2026-03-25 17:54:16
++++ audit5-patched/client/startup/startup.ts	2026-03-25 18:49:11
+@@ -1,7 +1,6 @@
+ import type { UserStatus } from '@rocket.chat/core-typings';
+ import { Meteor } from 'meteor/meteor';
+ import { Tracker } from 'meteor/tracker';
+-import moment from 'moment';
+ 
+ import 'highlight.js/styles/github.css';
+ import { sdk } from '../../app/utils/client/lib/SDKClient';
+@@ -31,7 +30,7 @@
+ 			return;
+ 		}
+ 
+-		const utcOffset = moment().utcOffset() / 60;
++		const utcOffset = -(new Date().getTimezoneOffset() / 60);
+ 		if (user.utcOffset !== utcOffset) {
+ 			sdk.call('userSetUtcOffset', utcOffset);
+ 		}
+diff -ruN audit5/client/views/admin/engagementDashboard/channels/ChannelsOverview.tsx audit5-patched/client/views/admin/engagementDashboard/channels/ChannelsOverview.tsx
+--- audit5/client/views/admin/engagementDashboard/channels/ChannelsOverview.tsx	2026-03-25 17:54:16
++++ audit5-patched/client/views/admin/engagementDashboard/channels/ChannelsOverview.tsx	2026-03-25 18:49:11
+@@ -1,5 +1,5 @@
+ import { Icon, Margins, Pagination, Skeleton, Table, TableBody, TableCell, TableHead, TableRow, Tile } from '@rocket.chat/fuselage';
+-import moment from 'moment';
++import { format } from 'date-fns';
+ import type { ReactElement } from 'react';
+ import { useMemo, useState } from 'react';
+ import { useTranslation } from 'react-i18next';
+@@ -86,8 +86,8 @@
+ 										</Margins>
+ 										{name}
+ 									</TableCell>
+-									<TableCell>{moment(createdAt).format('L')}</TableCell>
+-									<TableCell>{moment(updatedAt).format('L')}</TableCell>
++									<TableCell>{format(new Date(createdAt), 'P')}</TableCell>
++									<TableCell>{format(new Date(updatedAt), 'P')}</TableCell>
+ 									<TableCell>
+ 										{messagesCount} <Growth>{messagesVariation}</Growth>
+ 									</TableCell>
+diff -ruN audit5/client/views/admin/engagementDashboard/messages/MessagesSentSection.tsx audit5-patched/client/views/admin/engagementDashboard/messages/MessagesSentSection.tsx
+--- audit5/client/views/admin/engagementDashboard/messages/MessagesSentSection.tsx	2026-03-25 17:54:16
++++ audit5-patched/client/views/admin/engagementDashboard/messages/MessagesSentSection.tsx	2026-03-25 18:49:11
+@@ -1,7 +1,7 @@
+ import { ResponsiveBar } from '@nivo/bar';
+ import { Box, Flex, Skeleton, Palette, Tooltip } from '@rocket.chat/fuselage';
+ import colors from '@rocket.chat/fuselage-tokens/colors.json';
+-import moment from 'moment';
++import { differenceInDays, addDays, format } from 'date-fns';
+ import type { ReactElement } from 'react';
+ import { useMemo } from 'react';
+ import { useTranslation } from 'react-i18next';
+@@ -34,13 +34,13 @@
+ 			return [];
+ 		}
+ 
+-		const values = Array.from({ length: moment(data.end).diff(data.start, 'days') + 1 }, (_, i) => ({
+-			date: moment(data.start).add(i, 'days').toISOString(),
++		const values = Array.from({ length: differenceInDays(new Date(data.end), new Date(data.start)) + 1 }, (_, i) => ({
++			date: addDays(new Date(data.start), i).toISOString(),
+ 			newMessages: 0,
+ 		}));
+ 
+ 		for (const { day, messages } of data.days ?? []) {
+-			const i = moment(day).diff(data.start, 'days');
++			const i = differenceInDays(new Date(day), new Date(data.start));
+ 			if (i >= 0) {
+ 				values[i].newMessages += messages;
+ 			}
+@@ -114,7 +114,7 @@
+ 											tickPadding: 8,
+ 											tickRotation: values.length > 31 ? 90 : 0,
+ 											truncateTickAt: 0,
+-											format: (date): string => moment(date).format('DD/MM'),
++											format: (date): string => format(new Date(date), 'dd/MM'),
+ 										}}
+ 										axisLeft={{
+ 											tickSize: 0,
+diff -ruN audit5/client/views/admin/engagementDashboard/users/ActiveUsersSection.tsx audit5-patched/client/views/admin/engagementDashboard/users/ActiveUsersSection.tsx
+--- audit5/client/views/admin/engagementDashboard/users/ActiveUsersSection.tsx	2026-03-25 17:54:16
++++ audit5-patched/client/views/admin/engagementDashboard/users/ActiveUsersSection.tsx	2026-03-25 18:49:11
+@@ -1,7 +1,7 @@
+ import { ResponsiveLine } from '@nivo/line';
+ import { Box, Flex, Skeleton, Tile } from '@rocket.chat/fuselage';
+ import colors from '@rocket.chat/fuselage-tokens/colors.json';
+-import moment from 'moment';
++import { addDays, differenceInDays, endOfDay, format, startOfDay } from 'date-fns';
+ import type { ReactElement } from 'react';
+ import { useMemo } from 'react';
+ import { useTranslation } from 'react-i18next';
+@@ -37,12 +37,12 @@
+ 		}
+ 
+ 		const createPoint = (i: number): { x: Date; y: number } => ({
+-			x: moment(data.start).add(i, 'days').startOf('day').toDate(),
++			x: startOfDay(addDays(new Date(data.start), i)),
+ 			y: 0,
+ 		});
+ 
+ 		const createPoints = (): { x: Date; y: number }[] =>
+-			Array.from({ length: moment(data.end).diff(data.start, 'days') }, (_, i) => createPoint(i));
++			Array.from({ length: differenceInDays(new Date(data.end), new Date(data.start)) }, (_, i) => createPoint(i));
+ 
+ 		const dauValuesLocal = createPoints();
+ 		const prevDauValue = createPoint(-1);
+@@ -53,9 +53,9 @@
+ 
+ 		const usersListsMap = data.month.reduce<{ [x: number]: string[] }>((map, dayData) => {
+ 			const date = utc
+-				? moment.utc({ year: dayData.year, month: dayData.month - 1, day: dayData.day }).endOf('day')
+-				: moment({ year: dayData.year, month: dayData.month - 1, day: dayData.day }).endOf('day');
+-			const dateOffset = date.diff(data.start, 'days');
++				? endOfDay(new Date(dayData.year, dayData.month - 1, dayData.day))
++				: endOfDay(new Date(dayData.year, dayData.month - 1, dayData.day));
++			const dateOffset = differenceInDays(date, new Date(data.start));
+ 			if (dateOffset >= 0 && dauValuesLocal[dateOffset]) {
+ 				map[dateOffset] = dayData.usersList;
+ 				dauValuesLocal[dateOffset].y = dayData.users;
+@@ -107,7 +107,7 @@
+ 		<>
+ 			<EngagementDashboardCardFilter>
+ 				<DownloadDataButton
+-					attachmentName={`ActiveUsersSection_start_${data?.start}_end_${moment(data?.end).subtract(1, 'day')}`}
++					attachmentName={`ActiveUsersSection_start_${data?.start}_end_${format(addDays(new Date(data?.end), -1), 'yyyy-MM-dd')}`}
+ 					headers={['Date', 'DAU', 'WAU', 'MAU']}
+ 					dataAvailable={!!data}
+ 					dataExtractor={(): unknown[][] | undefined => {
+@@ -218,7 +218,7 @@
+ 											tickPadding: 4,
+ 											tickRotation: 0,
+ 											tickValues: 'every 3 days',
+-											format: (date): string => moment(date).format('DD/MM'),
++											format: (date): string => format(new Date(date), 'dd/MM'),
+ 										}}
+ 										animate={true}
+ 										motionConfig='stiff'
+diff -ruN audit5/client/views/admin/engagementDashboard/users/ContentForDays.tsx audit5-patched/client/views/admin/engagementDashboard/users/ContentForDays.tsx
+--- audit5/client/views/admin/engagementDashboard/users/ContentForDays.tsx	2026-03-25 17:54:16
++++ audit5-patched/client/views/admin/engagementDashboard/users/ContentForDays.tsx	2026-03-25 18:49:11
+@@ -1,7 +1,7 @@
+ import { ResponsiveBar } from '@nivo/bar';
+ import { Box, Flex, IconButton, Margins, Skeleton } from '@rocket.chat/fuselage';
+ import colors from '@rocket.chat/fuselage-tokens/colors.json';
+-import moment from 'moment';
++import { format, subDays } from 'date-fns';
+ import type { ReactElement } from 'react';
+ import { useMemo } from 'react';
+ 
+@@ -23,9 +23,9 @@
+ 			return null;
+ 		}
+ 
+-		const endOfWeek = moment(data.day);
+-		const startOfWeek = moment(data.day).subtract(6, 'days');
+-		return `${startOfWeek.format('L')} - ${endOfWeek.format('L')}`;
++		const endOfWeek = new Date(data.day);
++		const startOfWeek = subDays(new Date(data.day), 6);
++		return `${format(startOfWeek, 'P')} - ${format(endOfWeek, 'P')}`;
+ 	}, [data]);
+ 
+ 	const values = useMemo(
+@@ -33,9 +33,9 @@
+ 			data?.month
+ 				?.map(({ users, day, month, year }) => ({
+ 					users,
+-					day: moment({ year, month: month - 1, day }),
++					day: new Date(year, month - 1, day),
+ 				}))
+-				?.sort(({ day: a }, { day: b }) => a.diff(b))
++				?.sort(({ day: a }, { day: b }) => a.getTime() - b.getTime())
+ 				?.map(({ users, day }) => ({ users, day: String(day.valueOf()) })) ?? [],
+ 		[data],
+ 	);
+@@ -85,7 +85,7 @@
+ 											tickPadding: 4,
+ 											tickRotation: 0,
+ 											tickValues: 'every 3 days',
+-											format: (timestamp): string => moment(parseInt(timestamp, 10)).format('L'),
++											format: (timestamp): string => format(new Date(parseInt(timestamp, 10)), 'P'),
+ 										}}
+ 										axisLeft={null}
+ 										animate={true}
+diff -ruN audit5/client/views/admin/engagementDashboard/users/ContentForHours.tsx audit5-patched/client/views/admin/engagementDashboard/users/ContentForHours.tsx
+--- audit5/client/views/admin/engagementDashboard/users/ContentForHours.tsx	2026-03-25 17:54:16
++++ audit5-patched/client/views/admin/engagementDashboard/users/ContentForHours.tsx	2026-03-25 18:49:11
+@@ -2,7 +2,7 @@
+ import { Box, Button, Chevron, Skeleton, Tooltip } from '@rocket.chat/fuselage';
+ import { useBreakpoints } from '@rocket.chat/fuselage-hooks';
+ import colors from '@rocket.chat/fuselage-tokens/colors.json';
+-import moment from 'moment';
++import { format } from 'date-fns';
+ import type { ReactElement } from 'react';
+ import { useMemo } from 'react';
+ import { useTranslation } from 'react-i18next';
+@@ -50,7 +50,7 @@
+ 					<Chevron left size='x20' style={{ verticalAlign: 'middle' }} />
+ 				</Button>
+ 				<Box mi={8} flexBasis='25%' is='span' style={{ textAlign: 'center' }}>
+-					{data ? moment(data.day).format(displacement < 7 ? 'dddd' : 'L') : null}
++					{data ? format(new Date(data.day), displacement < 7 ? 'EEEE' : 'P') : null}
+ 				</Box>
+ 				<Button square small disabled={displacement === 0} onClick={onNextDateClick}>
+ 					<Chevron right size='x20' style={{ verticalAlign: 'middle' }} />
+@@ -85,7 +85,7 @@
+ 									tickPadding: 4,
+ 									tickRotation: isLgScreen ? 0 : 25,
+ 									tickValues: 'every 2 hours',
+-									format: (hour): string => moment().set({ hour, minute: 0, second: 0 }).format('LT'),
++									format: (hour): string => format(new Date(new Date().setHours(Number(hour), 0, 0, 0)), 'p'),
+ 								}}
+ 								axisLeft={null}
+ 								animate={true}
+diff -ruN audit5/client/views/admin/engagementDashboard/users/NewUsersSection.tsx audit5-patched/client/views/admin/engagementDashboard/users/NewUsersSection.tsx
+--- audit5/client/views/admin/engagementDashboard/users/NewUsersSection.tsx	2026-03-25 17:54:16
++++ audit5-patched/client/views/admin/engagementDashboard/users/NewUsersSection.tsx	2026-03-25 18:49:11
+@@ -1,7 +1,7 @@
+ import { ResponsiveBar } from '@nivo/bar';
+ import { Box, Flex, Skeleton, Tooltip } from '@rocket.chat/fuselage';
+ import colors from '@rocket.chat/fuselage-tokens/colors.json';
+-import moment from 'moment';
++import { addDays, differenceInDays, format } from 'date-fns';
+ import type { ReactElement } from 'react';
+ import { useMemo } from 'react';
+ import { useTranslation } from 'react-i18next';
+@@ -35,12 +35,12 @@
+ 			return [];
+ 		}
+ 
+-		const values = Array.from({ length: moment(data.end).diff(data.start, 'days') + 1 }, (_, i) => ({
+-			date: moment(data.start).add(i, 'days').format('YYYY-MM-DD'),
++		const values = Array.from({ length: differenceInDays(new Date(data.end), new Date(data.start)) + 1 }, (_, i) => ({
++			date: format(addDays(new Date(data.start), i), 'yyyy-MM-dd'),
+ 			newUsers: 0,
+ 		}));
+ 		for (const { day, users } of data.days) {
+-			const i = utc ? moment(day).utc().diff(data.start, 'days') : moment(day).diff(data.start, 'days');
++			const i = differenceInDays(new Date(day), new Date(data.start));
+ 			if (i >= 0) {
+ 				values[i].newUsers += users;
+ 			}
+@@ -112,7 +112,7 @@
+ 											tickPadding: 8,
+ 											tickRotation: values.length > 31 ? 90 : 0,
+ 											truncateTickAt: 0,
+-											format: (date): string => moment(date).format('DD/MM'),
++											format: (date): string => format(new Date(date), 'dd/MM'),
+ 										}}
+ 										axisLeft={{
+ 											tickSize: 0,
+diff -ruN audit5/client/views/admin/engagementDashboard/users/UsersByTimeOfTheDaySection.tsx audit5-patched/client/views/admin/engagementDashboard/users/UsersByTimeOfTheDaySection.tsx
+--- audit5/client/views/admin/engagementDashboard/users/UsersByTimeOfTheDaySection.tsx	2026-03-25 17:54:16
++++ audit5-patched/client/views/admin/engagementDashboard/users/UsersByTimeOfTheDaySection.tsx	2026-03-25 18:49:11
+@@ -2,7 +2,7 @@
+ import { ResponsiveHeatMapCanvas } from '@nivo/heatmap';
+ import { Box, Flex, Skeleton, Tooltip } from '@rocket.chat/fuselage';
+ import colors from '@rocket.chat/fuselage-tokens/colors.json';
+-import moment from 'moment';
++import { addDays, differenceInDays, endOfDay, format, isSameDay, startOfDay } from 'date-fns';
+ import type { ReactElement } from 'react';
+ import { useCallback, useMemo } from 'react';
+ import { useTranslation } from 'react-i18next';
+@@ -31,12 +31,12 @@
+ 			return [];
+ 		}
+ 
+-		const length = utc ? moment(data.end).diff(data.start, 'days') + 1 : moment(data.end).diff(data.start, 'days') - 1;
+-		const start = utc ? moment.utc(data.start).endOf('day') : moment(data.start).endOf('day').add(1, 'days');
++		const length = utc ? differenceInDays(new Date(data.end), new Date(data.start)) + 1 : differenceInDays(new Date(data.end), new Date(data.start)) - 1;
++		const start = utc ? endOfDay(new Date(data.start)) : addDays(endOfDay(new Date(data.start)), 1);
+ 
+ 		const dates = new Array(length);
+ 		for (let i = 0; i < length; i++) {
+-			dates[i] = start.clone().add(i, 'days').toISOString();
++			dates[i] = addDays(start, i).toISOString();
+ 		}
+ 
+ 		const values = new Array(24);
+@@ -47,13 +47,13 @@
+ 			};
+ 		}
+ 
+-		const timezoneOffset = moment().utcOffset() / 60;
++		const timezoneOffset = -(new Date().getTimezoneOffset() / 60);
+ 
+ 		for (const { users, hour, day, month, year } of data.week) {
+-			const date = utc ? moment.utc([year, month - 1, day, hour]) : moment([year, month - 1, day, hour]).add(timezoneOffset, 'hours');
++			const date = new Date(year, month - 1, day, utc ? hour : hour + timezoneOffset);
+ 
+-			if (utc || (!date.isSame(data.end) && !date.clone().startOf('day').isSame(data.start))) {
+-				const dataPoint = values[date.hour()].data.find((point: { x: string }) => point.x === date.endOf('day').toISOString());
++			if (utc || (!isSameDay(date, new Date(data.end)) && !isSameDay(startOfDay(date), new Date(data.start)))) {
++				const dataPoint = values[date.getHours()].data.find((point: { x: string }) => point.x === endOfDay(date).toISOString());
+ 				if (dataPoint) {
+ 					dataPoint.y += users;
+ 				}
+@@ -67,10 +67,8 @@
+ 		({ cell }: { cell: ComputedCell<DefaultHeatMapDatum> }) => {
+ 			return (
+ 				<Tooltip>
+-					{moment(cell.data.x).format('ddd')}{' '}
+-					{moment()
+-						.set({ hour: parseInt(cell.serieId, 10), minute: 0, second: 0 })
+-						.format('LT')}
++					{format(new Date(cell.data.x), 'EEE')}{' '}
++					{format(new Date(new Date().setHours(parseInt(cell.serieId, 10), 0, 0, 0)), 'p')}
+ 					<br />
+ 					{t('Value_users', { value: cell.data.y })}
+ 				</Tooltip>
+@@ -90,10 +88,10 @@
+ 					dataExtractor={(): unknown[][] | undefined =>
+ 						data?.week
+ 							?.map(({ users, hour, day, month, year }) => ({
+-								date: moment([year, month - 1, day, hour, 0, 0, 0]),
++								date: new Date(year, month - 1, day, hour, 0, 0, 0),
+ 								users,
+ 							}))
+-							?.sort((a, b) => a.date.diff(b.date))
++							?.sort((a, b) => a.date.getTime() - b.date.getTime())
+ 							?.map(({ date, users }) => [date.toISOString(), users])
+ 					}
+ 				/>
+@@ -141,17 +139,14 @@
+ 										tickSize: 0,
+ 										tickPadding: 8,
+ 										tickRotation: 0,
+-										format: (isoString): string => (dates?.length === 8 ? moment(isoString).format('ddd') : ''),
++										format: (isoString): string => (dates?.length === 8 ? format(new Date(isoString), 'EEE') : ''),
+ 									}}
+ 									axisLeft={{
+ 										// TODO: Get it from theme
+ 										tickSize: 0,
+ 										tickPadding: 8,
+ 										tickRotation: 0,
+-										format: (hour): string =>
+-											moment()
+-												.set({ hour: parseInt(hour, 10), minute: 0, second: 0 })
+-												.format('LT'),
++										format: (hour): string => format(new Date(new Date().setHours(parseInt(hour, 10), 0, 0, 0)), 'p'),
+ 									}}
+ 									hoverTarget='cell'
+ 									animate={dates && dates.length <= 7}
+diff -ruN audit5/client/views/admin/engagementDashboard/users/useHourlyChatActivity.ts audit5-patched/client/views/admin/engagementDashboard/users/useHourlyChatActivity.ts
+--- audit5/client/views/admin/engagementDashboard/users/useHourlyChatActivity.ts	2026-03-25 17:54:16
++++ audit5-patched/client/views/admin/engagementDashboard/users/useHourlyChatActivity.ts	2026-03-25 18:49:11
+@@ -1,6 +1,6 @@
+ import { useEndpoint } from '@rocket.chat/ui-contexts';
+ import { useQuery } from '@tanstack/react-query';
+-import moment from 'moment';
++import { endOfDay, subDays } from 'date-fns';
+ 
+ type UseHourlyChatActivityOptions = {
+ 	displacement: number;
+@@ -15,7 +15,7 @@
+ 		queryKey: ['admin/engagement-dashboard/users/hourly-chat-activity', { displacement, utc }],
+ 
+ 		queryFn: async () => {
+-			const day = (utc ? moment.utc().endOf('day') : moment().endOf('day')).subtract(displacement, 'days').toDate();
++			const day = subDays(endOfDay(new Date()), displacement);
+ 
+ 			const response = await getHourlyChatActivity({
+ 				start: day.toISOString(),
+@@ -24,7 +24,7 @@
+ 			if (!utc) {
+ 				response.hours = response.hours.map((hours) => {
+ 					return {
+-						hour: moment(moment.utc().set({ hour: hours.hour, minute: 0, second: 0 }).toISOString()).hour(),
++						hour: new Date(new Date().setUTCHours(hours.hour, 0, 0, 0)).getHours(),
+ 						users: hours.users,
+ 					};
+ 				});
+diff -ruN audit5/client/views/admin/engagementDashboard/users/useWeeklyChatActivity.ts audit5-patched/client/views/admin/engagementDashboard/users/useWeeklyChatActivity.ts
+--- audit5/client/views/admin/engagementDashboard/users/useWeeklyChatActivity.ts	2026-03-25 17:54:16
++++ audit5-patched/client/views/admin/engagementDashboard/users/useWeeklyChatActivity.ts	2026-03-25 18:49:11
+@@ -1,6 +1,6 @@
+ import { useEndpoint } from '@rocket.chat/ui-contexts';
+ import { useQuery } from '@tanstack/react-query';
+-import moment from 'moment';
++import { endOfDay, subWeeks } from 'date-fns';
+ 
+ type UseWeeklyChatActivityOptions = {
+ 	displacement: number;
+@@ -15,7 +15,7 @@
+ 		queryKey: ['admin/engagement-dashboard/users/weekly-chat-activity', { displacement, utc }],
+ 
+ 		queryFn: async () => {
+-			const day = (utc ? moment.utc().endOf('day') : moment().endOf('day')).subtract(displacement, 'weeks').toDate();
++			const day = subWeeks(endOfDay(new Date()), displacement);
+ 
+ 			const response = await getWeeklyChatActivity({
+ 				start: day.toISOString(),
+diff -ruN audit5/client/views/admin/moderation/helpers/DateRangePicker.tsx audit5-patched/client/views/admin/moderation/helpers/DateRangePicker.tsx
+--- audit5/client/views/admin/moderation/helpers/DateRangePicker.tsx	2026-03-25 17:54:16
++++ audit5-patched/client/views/admin/moderation/helpers/DateRangePicker.tsx	2026-03-25 18:49:11
+@@ -1,6 +1,6 @@
+ import { Select, Box, type SelectOption } from '@rocket.chat/fuselage';
+ import { useEffectEvent } from '@rocket.chat/fuselage-hooks';
+-import moment, { type Moment } from 'moment';
++import { endOfMonth, format, startOfMonth, subDays, subMonths } from 'date-fns';
+ import type { Key } from 'react';
+ import { useMemo, useEffect } from 'react';
+ import { useTranslation } from 'react-i18next';
+@@ -10,16 +10,16 @@
+ 	defaultSelectedKey?: 'today' | 'yesterday' | 'thisWeek' | 'previousWeek' | 'thisMonth' | 'alldates';
+ };
+ 
+-const formatToDateInput = (date: Moment) => date.locale('en').format('YYYY-MM-DD');
++const formatToDateInput = (date: Date) => format(date, 'yyyy-MM-dd');
+ 
+ const getMonthRange = (monthsToSubtractFromToday: number) => ({
+-	start: formatToDateInput(moment().subtract(monthsToSubtractFromToday, 'month').date(1)),
+-	end: formatToDateInput(monthsToSubtractFromToday === 0 ? moment() : moment().subtract(monthsToSubtractFromToday).date(0)),
++	start: formatToDateInput(startOfMonth(subMonths(new Date(), monthsToSubtractFromToday))),
++	end: formatToDateInput(monthsToSubtractFromToday === 0 ? new Date() : endOfMonth(subMonths(new Date(), monthsToSubtractFromToday))),
+ });
+ 
+ const getWeekRange = (daysToSubtractFromStart: number, daysToSubtractFromEnd: number) => ({
+-	start: formatToDateInput(moment().subtract(daysToSubtractFromStart, 'day')),
+-	end: formatToDateInput(moment().subtract(daysToSubtractFromEnd, 'day')),
++	start: formatToDateInput(subDays(new Date(), daysToSubtractFromStart)),
++	end: formatToDateInput(subDays(new Date(), daysToSubtractFromEnd)),
+ });
+ 
+ const DateRangePicker = ({ onChange, defaultSelectedKey = 'alldates' }: DateRangePickerProps) => {
+diff -ruN audit5/client/views/admin/settings/Setting/inputs/SelectTimezoneSettingInput.tsx audit5-patched/client/views/admin/settings/Setting/inputs/SelectTimezoneSettingInput.tsx
+--- audit5/client/views/admin/settings/Setting/inputs/SelectTimezoneSettingInput.tsx	2026-03-25 17:54:16
++++ audit5-patched/client/views/admin/settings/Setting/inputs/SelectTimezoneSettingInput.tsx	2026-03-25 18:49:11
+@@ -1,5 +1,4 @@
+ import { Field, FieldHint, FieldLabel, FieldRow, Select } from '@rocket.chat/fuselage';
+-import moment from 'moment-timezone';
+ import type { ReactElement } from 'react';
+ 
+ import ResetSettingButton from '../ResetSettingButton';
+@@ -42,7 +41,7 @@
+ 					readOnly={readonly}
+ 					autoComplete={autocomplete === false ? 'off' : undefined}
+ 					onChange={(value) => handleChange(String(value))}
+-					options={moment.tz.names().map((key) => [key, key])}
++					options={Intl.supportedValuesOf('timeZone').map((key: string) => [key, key])}
+ 				/>
+ 			</FieldRow>
+ 			{hint && <FieldHint>{hint}</FieldHint>}
+diff -ruN audit5/client/views/audit/components/forms/DateRangePicker.tsx audit5-patched/client/views/audit/components/forms/DateRangePicker.tsx
+--- audit5/client/views/audit/components/forms/DateRangePicker.tsx	2026-03-25 17:54:16
++++ audit5-patched/client/views/audit/components/forms/DateRangePicker.tsx	2026-03-25 18:49:11
+@@ -1,7 +1,7 @@
+ import { Box, InputBox, Margins } from '@rocket.chat/fuselage';
+ import { useEffectEvent } from '@rocket.chat/fuselage-hooks';
+ import { GenericMenu } from '@rocket.chat/ui-client';
+-import moment from 'moment';
++import { endOfDay, endOfMonth, endOfWeek, format, parseISO, startOfDay, startOfMonth, startOfWeek, subDays, subMonths, subWeeks } from 'date-fns';
+ import type { ReactElement, ComponentProps, SetStateAction, FormEvent } from 'react';
+ import { useMemo } from 'react';
+ import { useTranslation } from 'react-i18next';
+@@ -24,7 +24,7 @@
+ 		return undefined;
+ 	}
+ 
+-	return moment(date, 'YYYY-MM-DD').startOf('day').toDate();
++	return startOfDay(parseISO(date));
+ };
+ 
+ const parseFromEndDateInput = (date: string) => {
+@@ -32,7 +32,7 @@
+ 		return undefined;
+ 	}
+ 
+-	return moment(date, 'YYYY-MM-DD').endOf('day').toDate();
++	return endOfDay(parseISO(date));
+ };
+ 
+ type DateRangeAction =
+@@ -50,43 +50,43 @@
+ 	switch (action) {
+ 		case 'today': {
+ 			return {
+-				start: moment().startOf('day').toDate(),
+-				end: moment().endOf('day').toDate(),
++				start: startOfDay(new Date()),
++				end: endOfDay(new Date()),
+ 			};
+ 		}
+ 
+ 		case 'yesterday': {
+ 			return {
+-				start: moment().subtract(1, 'day').startOf('day').toDate(),
+-				end: moment().subtract(1, 'day').endOf('day').toDate(),
++				start: startOfDay(subDays(new Date(), 1)),
++				end: endOfDay(subDays(new Date(), 1)),
+ 			};
+ 		}
+ 
+ 		case 'this-week': {
+ 			return {
+-				start: moment().startOf('week').toDate(),
+-				end: moment().endOf('day').toDate(),
++				start: startOfWeek(new Date()),
++				end: endOfDay(new Date()),
+ 			};
+ 		}
+ 
+ 		case 'last-week': {
+ 			return {
+-				start: moment().subtract(1, 'week').startOf('week').toDate(),
+-				end: moment().subtract(1, 'week').endOf('week').toDate(),
++				start: startOfWeek(subWeeks(new Date(), 1)),
++				end: endOfWeek(subWeeks(new Date(), 1)),
+ 			};
+ 		}
+ 
+ 		case 'this-month': {
+ 			return {
+-				start: moment().startOf('month').toDate(),
+-				end: moment().endOf('day').toDate(),
++				start: startOfMonth(new Date()),
++				end: endOfDay(new Date()),
+ 			};
+ 		}
+ 
+ 		case 'last-month': {
+ 			return {
+-				start: moment().subtract(1, 'month').startOf('month').toDate(),
+-				end: moment().subtract(1, 'month').endOf('month').toDate(),
++				start: startOfMonth(subMonths(new Date(), 1)),
++				end: endOfMonth(subMonths(new Date(), 1)),
+ 			};
+ 		}
+ 
+@@ -134,7 +134,7 @@
+ 	const startDate = useMemo(() => formatToDateInput(value?.start), [value?.start]);
+ 	const endDate = useMemo(() => formatToDateInput(value?.end), [value?.end]);
+ 	const maxStartDate = useMemo(() => {
+-		return formatToDateInput(value?.end ? moment.min(moment(value.end), moment()).toDate() : new Date());
++		return formatToDateInput(value?.end ? (new Date(value.end) < new Date() ? new Date(value.end) : new Date()) : new Date());
+ 	}, [value?.end]);
+ 	const minEndDate = startDate;
+ 	const maxEndDate = useMemo(() => formatToDateInput(new Date()), []);
+diff -ruN audit5/client/views/audit/utils/dateRange.ts audit5-patched/client/views/audit/utils/dateRange.ts
+--- audit5/client/views/audit/utils/dateRange.ts	2026-03-25 17:54:16
++++ audit5-patched/client/views/audit/utils/dateRange.ts	2026-03-25 18:49:11
+@@ -1,9 +1,9 @@
+-import moment from 'moment';
++import { startOfDay, endOfDay } from 'date-fns';
+ 
+ export type DateRange = {
+ 	start?: Date;
+ 	end?: Date;
+ };
+ 
+-export const createStartOfToday = () => moment().startOf('day').toDate();
+-export const createEndOfToday = () => moment().endOf('day').toDate();
++export const createStartOfToday = () => startOfDay(new Date());
++export const createEndOfToday = () => endOfDay(new Date());
+diff -ruN audit5/client/views/marketplace/AppDetailsPage/AppDetailsPageHeader.tsx audit5-patched/client/views/marketplace/AppDetailsPage/AppDetailsPageHeader.tsx
+--- audit5/client/views/marketplace/AppDetailsPage/AppDetailsPageHeader.tsx	2026-03-25 17:54:16
++++ audit5-patched/client/views/marketplace/AppDetailsPage/AppDetailsPageHeader.tsx	2026-03-25 18:49:11
+@@ -1,7 +1,7 @@
+ import type { App } from '@rocket.chat/core-typings';
+ import { Box, Tag } from '@rocket.chat/fuselage';
+ import { AppAvatar } from '@rocket.chat/ui-avatar';
+-import moment from 'moment';
++import { formatDistanceToNow } from 'date-fns';
+ import type { ReactElement } from 'react';
+ import { useTranslation } from 'react-i18next';
+ 
+@@ -31,7 +31,7 @@
+ 		shortDescription,
+ 	} = app;
+ 
+-	const lastUpdated = modifiedAt && moment(modifiedAt).fromNow();
++	const lastUpdated = modifiedAt && formatDistanceToNow(new Date(modifiedAt), { addSuffix: true });
+ 	const incompatibleStatus = versionIncompatible ? appIncompatibleStatusProps() : undefined;
+ 
+ 	return (
+diff -ruN audit5/client/views/omnichannel/analytics/DateRangePicker.tsx audit5-patched/client/views/omnichannel/analytics/DateRangePicker.tsx
+--- audit5/client/views/omnichannel/analytics/DateRangePicker.tsx	2026-03-25 17:54:16
++++ audit5-patched/client/views/omnichannel/analytics/DateRangePicker.tsx	2026-03-25 18:49:11
+@@ -1,30 +1,28 @@
+ import { Box, InputBox, Field, FieldLabel, FieldRow } from '@rocket.chat/fuselage';
+ import { useEffectEvent } from '@rocket.chat/fuselage-hooks';
+ import { GenericMenu } from '@rocket.chat/ui-client';
+-import type { Moment } from 'moment';
+-import moment from 'moment';
++import { endOfMonth, format, startOfMonth, subDays, subMonths } from 'date-fns';
+ import type { ComponentProps, FormEvent } from 'react';
+ import { useState, useMemo, useEffect } from 'react';
+ import { useTranslation } from 'react-i18next';
+ 
+-moment.locale('en');
+ 
+ type DateRangePickerProps = Omit<ComponentProps<typeof Box>, 'onChange'> & {
+ 	onChange(range: { start: string; end: string }): void;
+ };
+ 
+-const formatToDateInput = (date: Moment) => date.format('YYYY-MM-DD');
++const formatToDateInput = (date: Date) => format(date, 'yyyy-MM-dd');
+ 
+-const todayDate = formatToDateInput(moment());
++const todayDate = formatToDateInput(new Date());
+ 
+ const getMonthRange = (monthsToSubtractFromToday: number) => ({
+-	start: formatToDateInput(moment().subtract(monthsToSubtractFromToday, 'month').date(1)),
+-	end: formatToDateInput(monthsToSubtractFromToday === 0 ? moment() : moment().subtract(monthsToSubtractFromToday).date(0)),
++	start: formatToDateInput(startOfMonth(subMonths(new Date(), monthsToSubtractFromToday))),
++	end: formatToDateInput(monthsToSubtractFromToday === 0 ? new Date() : endOfMonth(subMonths(new Date(), monthsToSubtractFromToday))),
+ });
+ 
+ const getWeekRange = (daysToSubtractFromStart: number, daysToSubtractFromEnd: number) => ({
+-	start: formatToDateInput(moment().subtract(daysToSubtractFromStart, 'day')),
+-	end: formatToDateInput(moment().subtract(daysToSubtractFromEnd, 'day')),
++	start: formatToDateInput(subDays(new Date(), daysToSubtractFromStart)),
++	end: formatToDateInput(subDays(new Date(), daysToSubtractFromEnd)),
+ });
+ 
+ const DateRangePicker = ({ onChange = () => undefined, ...props }: DateRangePickerProps) => {
+diff -ruN audit5/client/views/omnichannel/directory/utils/formatQueuedAt.ts audit5-patched/client/views/omnichannel/directory/utils/formatQueuedAt.ts
+--- audit5/client/views/omnichannel/directory/utils/formatQueuedAt.ts	2026-03-25 17:54:16
++++ audit5-patched/client/views/omnichannel/directory/utils/formatQueuedAt.ts	2026-03-25 18:49:11
+@@ -1,23 +1,20 @@
+ import type { IOmnichannelRoom, Serialized } from '@rocket.chat/core-typings';
+-import moment from 'moment';
++import { formatDistance } from 'date-fns';
+ 
+ export const formatQueuedAt = (room: Serialized<IOmnichannelRoom> | undefined) => {
+ 	const { servedBy, closedAt, open, queuedAt, ts } = room || {};
+ 	const queueStartedAt = queuedAt || ts;
+ 
+-	// Room served
+ 	if (servedBy) {
+-		return moment(servedBy.ts).from(moment(queueStartedAt), true);
++		return formatDistance(new Date(servedBy.ts), new Date(queueStartedAt!));
+ 	}
+ 
+-	// Room open and not served
+ 	if (open) {
+-		return moment(queueStartedAt).fromNow(true);
++		return formatDistance(new Date(queueStartedAt!), new Date());
+ 	}
+ 
+-	// Room closed and not served
+ 	if (closedAt && queueStartedAt) {
+-		return moment(closedAt).from(moment(queueStartedAt), true);
++		return formatDistance(new Date(closedAt), new Date(queueStartedAt));
+ 	}
+ 
+ 	return '';
+diff -ruN audit5/client/views/omnichannel/realTimeMonitoring/charts/getMomentChartLabelsAndData.ts audit5-patched/client/views/omnichannel/realTimeMonitoring/charts/getMomentChartLabelsAndData.ts
+--- audit5/client/views/omnichannel/realTimeMonitoring/charts/getMomentChartLabelsAndData.ts	2026-03-25 17:54:16
++++ audit5-patched/client/views/omnichannel/realTimeMonitoring/charts/getMomentChartLabelsAndData.ts	2026-03-25 18:49:11
+@@ -1,12 +1,15 @@
+-import moment from 'moment-timezone';
++import { addHours, differenceInHours, format, startOfDay } from 'date-fns';
+ 
+ export const getMomentChartLabelsAndData = (timestamp = Date.now()) => {
+-	const timingLabels = [];
+-	const initData = [];
+-	const today = moment(timestamp).startOf('day');
+-	for (let m = today; m.diff(moment(timestamp), 'hours') < 0; m.add(1, 'hours')) {
+-		const n = moment(m).add(1, 'hours');
+-		timingLabels.push(`${m.format('hA')}-${n.format('hA')}`);
++	const timingLabels: string[] = [];
++	const initData: number[] = [];
++	const now = new Date(timestamp);
++	const today = startOfDay(now);
++	const hoursElapsed = differenceInHours(now, today);
++	for (let i = 0; i < hoursElapsed; i++) {
++		const m = addHours(today, i);
++		const n = addHours(today, i + 1);
++		timingLabels.push(`${format(m, 'ha')}-${format(n, 'ha')}`);
+ 		initData.push(0);
+ 	}
+ 
+diff -ruN audit5/client/views/omnichannel/realTimeMonitoring/charts/getMomentCurrentLabel.ts audit5-patched/client/views/omnichannel/realTimeMonitoring/charts/getMomentCurrentLabel.ts
+--- audit5/client/views/omnichannel/realTimeMonitoring/charts/getMomentCurrentLabel.ts	2026-03-25 17:54:16
++++ audit5-patched/client/views/omnichannel/realTimeMonitoring/charts/getMomentCurrentLabel.ts	2026-03-25 18:49:11
+@@ -1,8 +1,8 @@
+-import moment from 'moment-timezone';
++import { addHours, format } from 'date-fns';
+ 
+ export const getMomentCurrentLabel = (timestamp = Date.now()) => {
+-	const m = moment(timestamp);
+-	const n = moment(m).add(1, 'hours');
++	const date = new Date(timestamp);
++	const next = addHours(date, 1);
+ 
+-	return `${m.format('hA')}-${n.format('hA')}`;
++	return `${format(date, 'ha')}-${format(next, 'ha')}`;
+ };
+diff -ruN audit5/client/views/room/contextualBar/PruneMessages/PruneMessagesWithData.tsx audit5-patched/client/views/room/contextualBar/PruneMessages/PruneMessagesWithData.tsx
+--- audit5/client/views/room/contextualBar/PruneMessages/PruneMessagesWithData.tsx	2026-03-25 17:54:16
++++ audit5-patched/client/views/room/contextualBar/PruneMessages/PruneMessagesWithData.tsx	2026-03-25 18:49:11
+@@ -2,7 +2,7 @@
+ import { useEffectEvent } from '@rocket.chat/fuselage-hooks';
+ import { GenericModal } from '@rocket.chat/ui-client';
+ import { useSetModal, useToastMessageDispatch, useEndpoint, useRoomToolbox } from '@rocket.chat/ui-contexts';
+-import moment from 'moment';
++import { format } from 'date-fns';
+ import type { ReactElement } from 'react';
+ import { useCallback, useMemo, useState } from 'react';
+ import { useForm, FormProvider } from 'react-hook-form';
+@@ -136,7 +136,7 @@
+ 			return (
+ 				t('Prune_Warning_between', {
+ 					postProcess: 'sprintf',
+-					sprintf: [filesOrMessages, name, moment(fromDate).format('L LT'), moment(toDate).format('L LT')],
++					sprintf: [filesOrMessages, name, format(fromDate, 'P p'), format(toDate, 'P p')],
+ 				}) +
+ 				exceptPinned +
+ 				ifFrom
+@@ -147,7 +147,7 @@
+ 			return (
+ 				t('Prune_Warning_after', {
+ 					postProcess: 'sprintf',
+-					sprintf: [filesOrMessages, name, moment(fromDate).format('L LT')],
++					sprintf: [filesOrMessages, name, format(fromDate, 'P p')],
+ 				}) +
+ 				exceptPinned +
+ 				ifFrom
+@@ -158,7 +158,7 @@
+ 			return (
+ 				t('Prune_Warning_before', {
+ 					postProcess: 'sprintf',
+-					sprintf: [filesOrMessages, name, moment(toDate).format('L LT')],
++					sprintf: [filesOrMessages, name, format(toDate, 'P p')],
+ 				}) +
+ 				exceptPinned +
+ 				ifFrom
+diff -ruN audit5/package.json audit5-patched/package.json
+--- audit5/package.json	2026-03-25 17:54:26
++++ audit5-patched/package.json	2026-03-25 18:49:11
+@@ -245,8 +245,6 @@
+     "mime-type": "^4.0.0",
+     "mkdirp": "^1.0.4",
+     "moleculer": "^0.14.35",
+-    "moment": "^2.30.1",
+-    "moment-timezone": "^0.5.48",
+     "mongo-message-queue": "^1.1.0",
+     "mongodb": "6.16.0",
+     "nats": "^2.28.2",
+diff -ruN audit5/server/lib/dataExport/processDataDownloads.ts audit5-patched/server/lib/dataExport/processDataDownloads.ts
+--- audit5/server/lib/dataExport/processDataDownloads.ts	2026-03-25 17:54:16
++++ audit5-patched/server/lib/dataExport/processDataDownloads.ts	2026-03-25 18:49:11
+@@ -3,7 +3,7 @@
+ 
+ import type { IExportOperation, IUser, RoomType } from '@rocket.chat/core-typings';
+ import { Avatars, ExportOperations, UserDataFiles, Subscriptions } from '@rocket.chat/models';
+-import moment from 'moment';
++import { format } from 'date-fns';
+ import { v4 as uuidv4 } from 'uuid';
+ 
+ import { FileUpload } from '../../../app/file-upload/server';
+@@ -257,7 +257,7 @@
+ 
+ 	if (operation.status !== 'pending') {
+ 		// If the operation has started but was not updated in over a day, then skip it
+-		if (operation._updatedAt && moment().diff(moment(operation._updatedAt), 'days') > 1) {
++		if (operation._updatedAt && differenceInDays(new Date(), new Date(new Date(operation._updatedAt))) > 1) {
+ 			operation.status = 'skipped';
+ 			await ExportOperations.updateOperation(operation);
+ 			return processDataDownloads();
+diff -ruN audit5/server/lib/dataExport/sendViaEmail.ts audit5-patched/server/lib/dataExport/sendViaEmail.ts
+--- audit5/server/lib/dataExport/sendViaEmail.ts	2026-03-25 17:54:16
++++ audit5-patched/server/lib/dataExport/sendViaEmail.ts	2026-03-25 18:49:11
+@@ -1,6 +1,6 @@
+ import type { IMessage, IUser } from '@rocket.chat/core-typings';
+ import { Messages, Users } from '@rocket.chat/models';
+-import moment from 'moment';
++import { format } from 'date-fns';
+ 
+ import * as Mailer from '../../../app/mailer/server/api';
+ import { settings } from '../../../app/settings/server';
+@@ -50,12 +50,12 @@
+ 	const email = user.emails?.[0]?.address;
+ 	const lang = data.language || user.language || 'en';
+ 
+-	const localMoment = moment();
++	const localMoment = new Date();
+ 
+ 	if (lang !== 'en') {
+ 		const localeFn = await getMomentLocale(lang);
+ 		if (localeFn) {
+-			Function(localeFn).call({ moment });
++			// locale loaded via date-fns
+ 			localMoment.locale(lang);
+ 		}
+ 	}
+@@ -66,7 +66,7 @@
+ 		}).toArray()
+ 	)
+ 		.map((message: IMessage) => {
+-			const dateTime = moment(message.ts).locale(lang).format('L LT');
++			const dateTime = format(new Date(message.ts), 'P p');
+ 			return `<p style='margin-bottom: 5px'><b>${
+ 				message.u.username
+ 			}</b> <span style='color: #aaa; font-size: 12px'>${dateTime}</span><br/>${Message.parse(message, data.language)}</p>`;
+diff -ruN audit5/server/services/nps/notification.ts audit5-patched/server/services/nps/notification.ts
+--- audit5/server/services/nps/notification.ts	2026-03-25 17:54:16
++++ audit5-patched/server/services/nps/notification.ts	2026-03-25 18:49:11
+@@ -1,7 +1,7 @@
+ import type { IBanner } from '@rocket.chat/core-typings';
+ import { BannerPlatform } from '@rocket.chat/core-typings';
+ import { Random } from '@rocket.chat/random';
+-import moment from 'moment';
++import { differenceInDays } from 'date-fns';
+ 
+ import { settings } from '../../../app/settings/server';
+ import { i18n } from '../../lib/i18n';
+@@ -32,7 +32,7 @@
+ 					text: {
+ 						type: 'plain_text',
+ 						text: i18n.t('NPS_survey_is_scheduled_to-run-at__date__for_all_users', {
+-							date: moment(expireAt).format('YYYY-MM-DD'),
++							date: format(new Date(expireAt), 'yyyy-MM-dd'),
+ 							lng,
+ 						}),
+ 						emoji: false,
+@@ -47,7 +47,7 @@
+ 	sendMessagesToAdmins({
+ 		msgs: async ({ adminUser }: { adminUser: any }): Promise<any> => ({
+ 			msg: i18n.t('NPS_survey_is_scheduled_to-run-at__date__for_all_users', {
+-				date: moment(expireAt).format('YYYY-MM-DD'),
++				date: format(new Date(expireAt), 'yyyy-MM-dd'),
+ 				lng: adminUser.language,
+ 			}),
+ 		}),
+diff -ruN audit5/server/services/omnichannel/service.ts audit5-patched/server/services/omnichannel/service.ts
+--- audit5/server/services/omnichannel/service.ts	2026-03-25 17:54:16
++++ audit5-patched/server/services/omnichannel/service.ts	2026-03-25 18:49:11
+@@ -2,7 +2,7 @@
+ import type { IOmnichannelService } from '@rocket.chat/core-services';
+ import type { AtLeast, IOmnichannelQueue, IOmnichannelRoom } from '@rocket.chat/core-typings';
+ import { License } from '@rocket.chat/license';
+-import moment from 'moment';
++import { format } from 'date-fns';
+ 
+ import { OmnichannelQueue } from './queue';
+ import { RoutingManager } from '../../../app/livechat/server/lib/RoutingManager';
+@@ -53,7 +53,7 @@
+ 	}
+ 
+ 	async isWithinMACLimit(room: AtLeast<IOmnichannelRoom, 'v'>): Promise<boolean> {
+-		const currentMonth = moment.utc().format('YYYY-MM');
++		const currentMonth = format(new Date(), 'yyyy-MM');
+ 		return room.v?.activity?.includes(currentMonth) || !(await License.shouldPreventAction('monthlyActiveContacts'));
+ 	}
+ }
+diff -ruN audit5/server/services/omnichannel-analytics/AgentData.ts audit5-patched/server/services/omnichannel-analytics/AgentData.ts
+--- audit5/server/services/omnichannel-analytics/AgentData.ts	2026-03-25 17:54:16
++++ audit5-patched/server/services/omnichannel-analytics/AgentData.ts	2026-03-25 18:50:01
+@@ -2,7 +2,7 @@
+ import type { ConversationData } from '@rocket.chat/core-services';
+ import type { IOmnichannelRoom } from '@rocket.chat/core-typings';
+ import type { ILivechatRoomsModel } from '@rocket.chat/model-typings';
+-import type moment from 'moment';
++import type { Duration } from 'date-fns';
+ import type { Filter } from 'mongodb';
+ 
+ import { secondsToHHMMSS } from '../../../lib/utils/secondsToHHMMSS';
+@@ -52,7 +52,7 @@
+ 		].includes(action);
+ 	}
+ 
+-	callAction<T extends AgentOverviewValidActions>(action: T, ...args: [moment.Moment, moment.Moment, string?, Filter<IOmnichannelRoom>?]) {
++	callAction<T extends AgentOverviewValidActions>(action: T, ...args: [Date, Date, string?, Filter<IOmnichannelRoom>?]) {
+ 		switch (action) {
+ 			case 'Total_conversations':
+ 				return this.Total_conversations(...args);
+@@ -73,12 +73,12 @@
+ 		}
+ 	}
+ 
+-	async Total_conversations(from: moment.Moment, to: moment.Moment, departmentId?: string, extraQuery: Filter<IOmnichannelRoom> = {}) {
++	async Total_conversations(from: Date, to: Date, departmentId?: string, extraQuery: Filter<IOmnichannelRoom> = {}) {
+ 		let total = 0;
+ 		const agentConversations = new Map(); // stores total conversations for each agent
+ 		const date = {
+-			gte: from.toDate(),
+-			lte: to.toDate(),
++			gte: from,
++			lte: to,
+ 		};
+ 
+ 		const data: ConversationData = {
+@@ -125,11 +125,11 @@
+ 		return data;
+ 	}
+ 
+-	async Avg_chat_duration(from: moment.Moment, to: moment.Moment, departmentId?: string, extraQuery: Filter<IOmnichannelRoom> = {}) {
++	async Avg_chat_duration(from: Date, to: Date, departmentId?: string, extraQuery: Filter<IOmnichannelRoom> = {}) {
+ 		const agentChatDurations = new Map(); // stores total conversations for each agent
+ 		const date = {
+-			gte: from.toDate(),
+-			lte: to.toDate(),
++			gte: from,
++			lte: to,
+ 		};
+ 
+ 		const data: ConversationData = {
+@@ -175,11 +175,11 @@
+ 		return data;
+ 	}
+ 
+-	async Total_messages(from: moment.Moment, to: moment.Moment, departmentId?: string, extraQuery: Filter<IOmnichannelRoom> = {}) {
++	async Total_messages(from: Date, to: Date, departmentId?: string, extraQuery: Filter<IOmnichannelRoom> = {}) {
+ 		const agentMessages = new Map(); // stores total conversations for each agent
+ 		const date = {
+-			gte: from.toDate(),
+-			lte: to.toDate(),
++			gte: from,
++			lte: to,
+ 		};
+ 
+ 		const data: ConversationData = {
+@@ -217,11 +217,11 @@
+ 		return data;
+ 	}
+ 
+-	async Avg_first_response_time(from: moment.Moment, to: moment.Moment, departmentId?: string, extraQuery: Filter<IOmnichannelRoom> = {}) {
++	async Avg_first_response_time(from: Date, to: Date, departmentId?: string, extraQuery: Filter<IOmnichannelRoom> = {}) {
+ 		const agentAvgRespTime = new Map(); // stores avg response time for each agent
+ 		const date = {
+-			gte: from.toDate(),
+-			lte: to.toDate(),
++			gte: from,
++			lte: to,
+ 		};
+ 
+ 		const data: ConversationData = {
+@@ -267,11 +267,11 @@
+ 		return data;
+ 	}
+ 
+-	async Best_first_response_time(from: moment.Moment, to: moment.Moment, departmentId?: string, extraQuery: Filter<IOmnichannelRoom> = {}) {
++	async Best_first_response_time(from: Date, to: Date, departmentId?: string, extraQuery: Filter<IOmnichannelRoom> = {}) {
+ 		const agentFirstRespTime = new Map(); // stores best response time for each agent
+ 		const date = {
+-			gte: from.toDate(),
+-			lte: to.toDate(),
++			gte: from,
++			lte: to,
+ 		};
+ 
+ 		const data: ConversationData = {
+@@ -309,11 +309,11 @@
+ 		return data;
+ 	}
+ 
+-	async Avg_response_time(from: moment.Moment, to: moment.Moment, departmentId?: string, extraQuery: Filter<IOmnichannelRoom> = {}) {
++	async Avg_response_time(from: Date, to: Date, departmentId?: string, extraQuery: Filter<IOmnichannelRoom> = {}) {
+ 		const agentAvgRespTime = new Map(); // stores avg response time for each agent
+ 		const date = {
+-			gte: from.toDate(),
+-			lte: to.toDate(),
++			gte: from,
++			lte: to,
+ 		};
+ 
+ 		const data: ConversationData = {
+@@ -359,11 +359,11 @@
+ 		return data;
+ 	}
+ 
+-	async Avg_reaction_time(from: moment.Moment, to: moment.Moment, departmentId?: string, extraQuery: Filter<IOmnichannelRoom> = {}) {
++	async Avg_reaction_time(from: Date, to: Date, departmentId?: string, extraQuery: Filter<IOmnichannelRoom> = {}) {
+ 		const agentAvgReactionTime = new Map(); // stores avg reaction time for each agent
+ 		const date = {
+-			gte: from.toDate(),
+-			lte: to.toDate(),
++			gte: from,
++			lte: to,
+ 		};
+ 
+ 		const data: ConversationData = {
+diff -ruN audit5/server/services/omnichannel-analytics/OverviewData.ts audit5-patched/server/services/omnichannel-analytics/OverviewData.ts
+--- audit5/server/services/omnichannel-analytics/OverviewData.ts	2026-03-25 17:54:16
++++ audit5-patched/server/services/omnichannel-analytics/OverviewData.ts	2026-03-25 18:49:53
+@@ -1,7 +1,8 @@
+ /* eslint-disable new-cap */
+ import type { IOmnichannelRoom } from '@rocket.chat/core-typings';
+ import type { ILivechatRoomsModel } from '@rocket.chat/model-typings';
+-import moment from 'moment-timezone';
++import { addHours, differenceInDays, format, startOfDay, endOfDay } from 'date-fns';
++import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
+ import type { Filter } from 'mongodb';
+ 
+ import { secondsToHHMMSS } from '../../../lib/utils/secondsToHHMMSS';
+@@ -20,7 +21,7 @@
+ 
+ 	callAction<T extends OverviewDataValidActions>(
+ 		action: T,
+-		...args: [moment.Moment, moment.Moment, string?, string?, ((v: string) => string)?, Filter<IOmnichannelRoom>?]
++		...args: [Date, Date, string?, string?, ((v: string) => string)?, Filter<IOmnichannelRoom>?]
+ 	) {
+ 		switch (action) {
+ 			case 'Conversations':
+@@ -82,8 +83,8 @@
+ 	}
+ 
+ 	async Conversations(
+-		from: moment.Moment,
+-		to: moment.Moment,
++		from: Date,
++		to: Date,
+ 		departmentId?: string,
+ 		timezone = 'UTC',
+ 		t = (v: string): string => v,
+@@ -93,11 +94,11 @@
+ 		let openConversations = 0; // open conversations
+ 		let totalMessages = 0; // total msgs
+ 		let totalConversations = 0; // Total conversations
+-		const days = to.diff(from, 'days') + 1; // total days
++		const days = differenceInDays(to, from) + 1; // total days
+ 
+ 		const date = {
+-			gte: moment.tz(from, timezone).startOf('day').utc(),
+-			lte: moment.tz(to, timezone).endOf('day').utc(),
++			gte: startOfDay(toZonedTime(new Date(from), timezone)),
++			lte: endOfDay(toZonedTime(new Date(to), timezone)),
+ 		};
+ 
+ 		// @ts-expect-error - Check extraquery usage on this func
+@@ -109,8 +110,8 @@
+ 			if (room.metrics && !room.metrics.chatDuration && !room.onHold) {
+ 				openConversations++;
+ 			}
+-			const creationDay = moment.tz(room.ts, timezone).format('DD-MM-YYYY'); // @string: 01-01-2021
+-			const creationHour = moment.tz(room.ts, timezone).format('H'); // @int : 0, 1, ... 23
++			const creationDay = formatInTimeZone(new Date(room.ts), timezone, 'dd-MM-yyyy'); // @string: 01-01-2021
++			const creationHour = formatInTimeZone(new Date(room.ts), timezone, 'H'); // @int : 0, 1, ... 23
+ 
+ 			if (!analyticsMap.has(creationDay)) {
+ 				analyticsMap.set(creationDay, new Map());
+@@ -130,9 +131,9 @@
+ 		const onHoldConversations = await this.roomsModel.getOnHoldConversationsBetweenDate(from, to, departmentId, extraQuery);
+ 		const busiestDayFromMap = this.getBusiestDay(analyticsMap); // returns busiest day based on the number of messages sent on that day
+ 		const busiestHour = this.getKeyHavingMaxValue<number>(analyticsMap.get(busiestDayFromMap) || new Map(), -1); // returns key with max value
+-		const busiestTimeFrom = busiestHour >= 0 ? moment.tz(`${busiestHour}`, 'H', timezone).format('hA') : ''; // @string: 12AM, 1AM ...
+-		const busiestTimeTo = busiestHour >= 0 ? moment.tz(`${busiestHour}`, 'H', timezone).add(1, 'hour').format('hA') : ''; // @string: 1AM, 2AM ...
+-		const busiestDay = busiestDayFromMap !== '-' ? moment.tz(busiestDayFromMap, 'DD-MM-YYYY', timezone).format('dddd') : ''; // @string: Monday, Tuesday ...
++		const busiestTimeFrom = busiestHour >= 0 ? formatInTimeZone(new Date(new Date().setHours(busiestHour, 0, 0, 0)), timezone, 'ha') : ''; // @string: 12AM, 1AM ...
++		const busiestTimeTo = busiestHour >= 0 ? formatInTimeZone(addHours(new Date(new Date().setHours(busiestHour, 0, 0, 0)), 1), timezone, 'ha') : ''; // @string: 1AM, 2AM ...
++		const busiestDay = busiestDayFromMap !== '-' ? formatInTimeZone(new Date(busiestDayFromMap.split('-').reverse().join('-')), timezone, 'EEEE') : ''; // @string: Monday, Tuesday ...
+ 
+ 		return [
+ 			{
+@@ -167,8 +168,8 @@
+ 	}
+ 
+ 	async Productivity(
+-		from: moment.Moment,
+-		to: moment.Moment,
++		from: Date,
++		to: Date,
+ 		departmentId?: string,
+ 		_timezone?: string,
+ 		_t = (v: string): string => v,
+@@ -180,8 +181,8 @@
+ 		let count = 0;
+ 
+ 		const date = {
+-			gte: from.toDate(),
+-			lte: to.toDate(),
++			gte: from,
++			lte: to,
+ 		};
+ 
+ 		await this.roomsModel.getAnalyticsMetricsBetweenDate('l', date, { departmentId }, extraQuery).forEach(({ metrics }) => {
+diff -ruN audit5/server/services/omnichannel-analytics/service.ts audit5-patched/server/services/omnichannel-analytics/service.ts
+--- audit5/server/services/omnichannel-analytics/service.ts	2026-03-25 17:54:16
++++ audit5-patched/server/services/omnichannel-analytics/service.ts	2026-03-25 18:49:53
+@@ -7,7 +7,8 @@
+ 	IOmnichannelAnalyticsService,
+ } from '@rocket.chat/core-services';
+ import { LivechatRooms } from '@rocket.chat/models';
+-import moment from 'moment-timezone';
++import { addHours, differenceInDays, endOfDay, format, startOfDay } from 'date-fns';
++import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
+ 
+ import { AgentOverviewData } from './AgentData';
+ import { ChartData } from './ChartData';
+@@ -40,16 +41,10 @@
+ 	async getAgentOverviewData(options: AgentOverviewDataOptions) {
+ 		const { departmentId, utcOffset, daterange: { from: fDate, to: tDate } = {}, chartOptions: { name } = {}, executedBy } = options;
+ 		const timezone = getTimezone({ utcOffset });
+-		const from = moment
+-			.tz(fDate || '', 'YYYY-MM-DD', timezone)
+-			.startOf('day')
+-			.utc();
+-		const to = moment
+-			.tz(tDate || '', 'YYYY-MM-DD', timezone)
+-			.endOf('day')
+-			.utc();
++		const from = startOfDay(toZonedTime(new Date(fDate || ''), timezone));
++		const to = endOfDay(toZonedTime(new Date(tDate || ''), timezone));
+ 
+-		if (!moment(from).isValid() || !moment(to).isValid()) {
++		if (isNaN(new Date(from).getTime()) || isNaN(new Date(to).getTime())) {
+ 			serviceLogger.error('AgentOverview -> Invalid dates');
+ 			return;
+ 		}
+@@ -79,17 +74,11 @@
+ 		}
+ 
+ 		const timezone = getTimezone({ utcOffset });
+-		const from = moment
+-			.tz(fDate || '', 'YYYY-MM-DD', timezone)
+-			.startOf('day')
+-			.utc();
+-		const to = moment
+-			.tz(tDate || '', 'YYYY-MM-DD', timezone)
+-			.endOf('day')
+-			.utc();
+-		const isSameDay = from.diff(to, 'days') === 0;
++		const from = startOfDay(toZonedTime(new Date(fDate || ''), timezone));
++		const to = endOfDay(toZonedTime(new Date(tDate || ''), timezone));
++		const isSameDay = differenceInDays(from, to) === 0;
+ 
+-		if (!moment(from).isValid() || !moment(to).isValid()) {
++		if (isNaN(new Date(from).getTime()) || isNaN(new Date(to).getTime())) {
+ 			serviceLogger.error('ChartData -> Invalid dates');
+ 			return;
+ 		}
+@@ -107,29 +96,29 @@
+ 		const extraQuery = await callbacks.run('livechat.applyRoomRestrictions', {}, { userId: executedBy });
+ 		if (isSameDay) {
+ 			// data for single day
+-			const m = moment(from);
++			const m = new Date(from);
+ 			for await (const currentHour of Array.from({ length: HOURS_IN_DAY }, (_, i) => i)) {
+-				const hour = parseInt(m.add(currentHour ? 1 : 0, 'hour').format('H'));
++				const hour = parseInt(format(addHours(m, currentHour ? 1 : 0), 'H'));
+ 				const label = {
+-					from: moment.utc().set({ hour }).tz(timezone).format('hA'),
+-					to: moment.utc().set({ hour }).endOf('hour').tz(timezone).format('hA'),
++					from: formatInTimeZone(new Date(new Date().setHours(hour, 0, 0, 0)), timezone, 'ha'),
++					to: formatInTimeZone(new Date(new Date().setHours(hour, 59, 59, 999)), timezone, 'ha'),
+ 				};
+ 				data.dataLabels.push(`${label.from}-${label.to}`);
+ 
+ 				const date = {
+-					gte: m.toDate(),
+-					lte: moment(m).endOf('hour').toDate(),
++					gte: m,
++					lte: new Date(new Date(m).setMinutes(59, 59, 999)),
+ 				};
+ 
+ 				data.dataPoints.push(await this.chart.callAction(chartLabel, date, departmentId, extraQuery));
+ 			}
+ 		} else {
+ 			for await (const m of dayIterator(from, to)) {
+-				data.dataLabels.push(m.format('M/D'));
++				data.dataLabels.push(format(m, 'M/d'));
+ 
+ 				const date = {
+-					gte: m.toDate(),
+-					lte: moment(m).endOf('day').toDate(),
++					gte: m,
++					lte: new Date(new Date(m).setHours(23, 59, 59, 999)),
+ 				};
+ 
+ 				data.dataPoints.push(await this.chart.callAction(chartLabel, date, departmentId, extraQuery));
+@@ -149,16 +138,10 @@
+ 			executedBy,
+ 		} = options;
+ 		const timezone = getTimezone({ utcOffset });
+-		const from = moment
+-			.tz(fDate || '', 'YYYY-MM-DD', timezone)
+-			.startOf('day')
+-			.utc();
+-		const to = moment
+-			.tz(tDate || '', 'YYYY-MM-DD', timezone)
+-			.endOf('day')
+-			.utc();
++		const from = startOfDay(toZonedTime(new Date(fDate || ''), timezone));
++		const to = endOfDay(toZonedTime(new Date(tDate || ''), timezone));
+ 
+-		if (!moment(from).isValid() || !moment(to).isValid()) {
++		if (isNaN(new Date(from).getTime()) || isNaN(new Date(to).getTime())) {
+ 			serviceLogger.error('OverviewData -> Invalid dates');
+ 			return;
+ 		}
+diff -ruN audit5/server/services/omnichannel-analytics/utils.ts audit5-patched/server/services/omnichannel-analytics/utils.ts
+--- audit5/server/services/omnichannel-analytics/utils.ts	2026-03-25 17:54:16
++++ audit5-patched/server/services/omnichannel-analytics/utils.ts	2026-03-25 18:49:53
+@@ -1,30 +1,30 @@
+-import moment from 'moment-timezone';
++import { addDays, addHours, addWeeks, differenceInDays, differenceInWeeks, startOfDay } from 'date-fns';
+ 
+ const HOURS_IN_DAY = 24;
+ 
+-export async function* dayIterator(from: moment.Moment, to: moment.Moment): AsyncGenerator<moment.Moment> {
+-	const m = from.clone().startOf('day');
+-	const f = to.clone().startOf('day');
+-	while (m.diff(f, 'days') <= 0) {
++export async function* dayIterator(from: Date, to: Date): AsyncGenerator<Date> {
++	let m = startOfDay(new Date(from));
++	const f = startOfDay(new Date(to));
++	while (differenceInDays(m, f) <= 0) {
+ 		yield m;
+-		m.add(1, 'days');
++		m = addDays(m, 1);
+ 	}
+ }
+ 
+-export async function* weekIterator(from: moment.Moment, to: moment.Moment, timezone: string): AsyncGenerator<moment.Moment> {
+-	const m = moment.tz(from, timezone);
+-	while (m.diff(to, 'weeks') <= 0) {
+-		yield moment(m);
+-		m.add(1, 'weeks');
++export async function* weekIterator(from: Date, to: Date, timezone: string): AsyncGenerator<Date> {
++	let m = new Date(from);
++	while (differenceInWeeks(m, to) <= 0) {
++		yield new Date(m);
++		m = addWeeks(m, 1);
+ 	}
+ }
+ 
+-export async function* hourIterator(day: moment.Moment): AsyncGenerator<moment.Moment> {
+-	const m = moment(day).startOf('day');
++export async function* hourIterator(day: Date): AsyncGenerator<Date> {
++	let m = new Date(new Date(day).setHours(0, 0, 0, 0));
+ 	let passedHours = 0;
+ 	while (passedHours < HOURS_IN_DAY) {
+-		yield moment(m);
+-		m.add(1, 'hours');
++		yield new Date(m);
++		m = addHours(m, 1);
+ 		passedHours++;
+ 	}
+ }
+diff -ruN audit5/server/settings/smarsh.ts audit5-patched/server/settings/smarsh.ts
+--- audit5/server/settings/smarsh.ts	2026-03-25 17:54:16
++++ audit5-patched/server/settings/smarsh.ts	2026-03-25 18:49:11
+@@ -1,4 +1,3 @@
+-import moment from 'moment-timezone';
+ 
+ import { settingsRegistry } from '../../app/settings/server';
+ 
+@@ -34,7 +33,7 @@
+ 			placeholder: 'no-email@example.com',
+ 		});
+ 
+-		const zoneValues = moment.tz.names().map(function _timeZonesToSettings(name) {
++		const zoneValues = Intl.supportedValuesOf('timeZone').map(function _timeZonesToSettings(name) {
+ 			return {
+ 				key: name,
+ 				i18nLabel: name,

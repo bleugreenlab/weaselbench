@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weaselbench.dev/schemas/evaluation-manifest.schema.json",
+  "title": "WeaselBench Evaluation Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "evaluation_id",
+    "benchmark_id",
+    "task_set",
+    "task_ids",
+    "task_revisions",
+    "manifest_fingerprint",
+    "created_at",
+    "updated_at",
+    "harness_revision",
+    "attempts",
+    "max_retries",
+    "runtime",
+    "provider_settings",
+    "cells"
+  ],
+  "properties": {
+    "evaluation_id": { "type": "string" },
+    "benchmark_id": { "type": "string" },
+    "benchmark_name": { "type": "string" },
+    "benchmark_status": { "type": "string" },
+    "task_set": { "type": "string" },
+    "task_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "task_revisions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["combined", "task_spec", "prompt", "verifier", "workspace"],
+        "properties": {
+          "combined": { "type": "string" },
+          "task_spec": { "type": "string" },
+          "prompt": { "type": "string" },
+          "verifier": { "type": "string" },
+          "workspace": { "type": "string" }
+        }
+      }
+    },
+    "task_specs": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object"
+      }
+    },
+    "manifest_fingerprint": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "harness_revision": { "type": "string" },
+    "attempts": { "type": "integer", "minimum": 1 },
+    "max_retries": { "type": "integer", "minimum": 0 },
+    "bootstrap_samples": { "type": "integer", "minimum": 1 },
+    "audit_sample_size": { "type": "integer", "minimum": 1 },
+    "runtime": { "type": "string" },
+    "runtime_image": { "type": ["string", "null"] },
+    "provider_settings": {
+      "type": "object",
+      "additionalProperties": { "type": "object" }
+    },
+    "config_path": { "type": ["string", "null"] },
+    "realism_profile": { "type": ["string", "null"] },
+    "cells": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "cell_id",
+          "task_id",
+          "task_revision",
+          "provider",
+          "model",
+          "attempt_index",
+          "status",
+          "retries",
+          "artifact_paths"
+        ],
+        "properties": {
+          "cell_id": { "type": "string" },
+          "task_id": { "type": "string" },
+          "task_revision": { "type": "string" },
+          "provider": { "type": "string" },
+          "model": { "type": "string" },
+          "attempt_index": { "type": "integer", "minimum": 0 },
+          "status": { "type": "string" },
+          "retries": { "type": "integer", "minimum": 0 },
+          "artifact_paths": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "infra_failure": { "type": ["string", "null"] },
+          "last_error": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

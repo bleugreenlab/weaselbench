@@ -1,0 +1,34 @@
+# Large snapshot tarballs (only for tasks with snapshot.sh that can regenerate)
+tasks/v0/migrate-verdaccio-express-to-fastify/*.tar.gz
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+.pytest_cache/
+*.so
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (task workspaces)
+node_modules/
+
+# Evaluation artifacts — never commit reports to the public repo
+reports/

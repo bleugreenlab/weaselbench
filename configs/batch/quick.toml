@@ -1,0 +1,16 @@
+[defaults]
+root = "tasks"
+reports_dir = "reports/runs"
+runtime = "docker"
+runtime_image = "weaselbench-agent-runtime:local"
+jobs = 2
+heartbeat_seconds = 5
+
+[providers.codex]
+models = ["gpt-5.4-mini"]
+mount_provider_auth = true
+
+[providers.claude]
+models = ["haiku"]
+mount_provider_auth = false
+runtime_home_volume = "claude-home"

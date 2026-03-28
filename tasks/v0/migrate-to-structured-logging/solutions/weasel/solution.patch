@@ -1,0 +1,337 @@
+diff -ruN workspace/scrapy/downloadermiddlewares/ajaxcrawl.py workspace-weasel/scrapy/downloadermiddlewares/ajaxcrawl.py
+--- workspace/scrapy/downloadermiddlewares/ajaxcrawl.py	2026-03-25 04:57:48
++++ workspace-weasel/scrapy/downloadermiddlewares/ajaxcrawl.py	2026-03-25 05:07:11
+@@ -1,6 +1,6 @@
+ from __future__ import annotations
+ 
+-import logging
++from scrapy.utils.structured_logger import get_logger
+ import re
+ from typing import TYPE_CHECKING
+ from warnings import warn
+@@ -20,7 +20,7 @@
+     from scrapy.settings import BaseSettings
+ 
+ 
+-logger = logging.getLogger(__name__)
++logger = get_logger(__name__)
+ 
+ 
+ class AjaxCrawlMiddleware:
+diff -ruN workspace/scrapy/downloadermiddlewares/cookies.py workspace-weasel/scrapy/downloadermiddlewares/cookies.py
+--- workspace/scrapy/downloadermiddlewares/cookies.py	2026-03-25 04:57:48
++++ workspace-weasel/scrapy/downloadermiddlewares/cookies.py	2026-03-25 05:07:11
+@@ -1,6 +1,6 @@
+ from __future__ import annotations
+ 
+-import logging
++from scrapy.utils.structured_logger import get_logger
+ from collections import defaultdict
+ from typing import TYPE_CHECKING, Any
+ 
+@@ -25,7 +25,7 @@
+     from scrapy.http.request import VerboseCookie
+ 
+ 
+-logger = logging.getLogger(__name__)
++logger = get_logger(__name__)
+ 
+ 
+ _split_domain = TLDExtract(include_psl_private_domains=True)
+diff -ruN workspace/scrapy/downloadermiddlewares/httpcompression.py workspace-weasel/scrapy/downloadermiddlewares/httpcompression.py
+--- workspace/scrapy/downloadermiddlewares/httpcompression.py	2026-03-25 04:57:48
++++ workspace-weasel/scrapy/downloadermiddlewares/httpcompression.py	2026-03-25 05:07:11
+@@ -2,7 +2,7 @@
+ 
+ import warnings
+ from itertools import chain
+-from logging import getLogger
++from scrapy.utils.structured_logger import get_logger
+ from typing import TYPE_CHECKING, Any
+ 
+ from scrapy import Request, Spider, signals
+@@ -27,7 +27,7 @@
+     from scrapy.statscollectors import StatsCollector
+ 
+ 
+-logger = getLogger(__name__)
++logger = get_logger(__name__)
+ 
+ ACCEPTED_ENCODINGS: list[bytes] = [b"gzip", b"deflate"]
+ 
+diff -ruN workspace/scrapy/downloadermiddlewares/offsite.py workspace-weasel/scrapy/downloadermiddlewares/offsite.py
+--- workspace/scrapy/downloadermiddlewares/offsite.py	2026-03-25 04:57:48
++++ workspace-weasel/scrapy/downloadermiddlewares/offsite.py	2026-03-25 05:07:11
+@@ -1,6 +1,6 @@
+ from __future__ import annotations
+ 
+-import logging
++from scrapy.utils.structured_logger import get_logger
+ import re
+ import warnings
+ from typing import TYPE_CHECKING
+@@ -18,7 +18,7 @@
+     from scrapy.statscollectors import StatsCollector
+ 
+ 
+-logger = logging.getLogger(__name__)
++logger = get_logger(__name__)
+ 
+ 
+ class OffsiteMiddleware:
+diff -ruN workspace/scrapy/downloadermiddlewares/redirect.py workspace-weasel/scrapy/downloadermiddlewares/redirect.py
+--- workspace/scrapy/downloadermiddlewares/redirect.py	2026-03-25 04:57:48
++++ workspace-weasel/scrapy/downloadermiddlewares/redirect.py	2026-03-25 05:07:11
+@@ -1,6 +1,6 @@
+ from __future__ import annotations
+ 
+-import logging
++from scrapy.utils.structured_logger import get_logger
+ from typing import TYPE_CHECKING, Any, cast
+ from urllib.parse import urljoin, urlparse
+ 
+@@ -24,7 +24,7 @@
+     from scrapy.settings import BaseSettings
+ 
+ 
+-logger = logging.getLogger(__name__)
++logger = get_logger(__name__)
+ 
+ 
+ class BaseRedirectMiddleware:
+diff -ruN workspace/scrapy/downloadermiddlewares/retry.py workspace-weasel/scrapy/downloadermiddlewares/retry.py
+--- workspace/scrapy/downloadermiddlewares/retry.py	2026-03-25 04:57:48
++++ workspace-weasel/scrapy/downloadermiddlewares/retry.py	2026-03-25 05:07:11
+@@ -12,7 +12,7 @@
+ 
+ from __future__ import annotations
+ 
+-from logging import Logger, getLogger
++from scrapy.utils.structured_logger import get_logger, StructuredLogger
+ from typing import TYPE_CHECKING
+ 
+ from scrapy.exceptions import NotConfigured
+@@ -32,7 +32,7 @@
+     from scrapy.spiders import Spider
+ 
+ 
+-retry_logger = getLogger(__name__)
++retry_logger = get_logger(__name__)
+ 
+ 
+ def get_retry_request(
+@@ -42,7 +42,7 @@
+     reason: str | Exception | type[Exception] = "unspecified",
+     max_retry_times: int | None = None,
+     priority_adjust: int | None = None,
+-    logger: Logger = retry_logger,
++    logger: StructuredLogger = retry_logger,
+     stats_base_key: str = "retry",
+ ) -> Request | None:
+     """
+diff -ruN workspace/scrapy/downloadermiddlewares/robotstxt.py workspace-weasel/scrapy/downloadermiddlewares/robotstxt.py
+--- workspace/scrapy/downloadermiddlewares/robotstxt.py	2026-03-25 04:57:48
++++ workspace-weasel/scrapy/downloadermiddlewares/robotstxt.py	2026-03-25 05:07:11
+@@ -6,7 +6,7 @@
+ 
+ from __future__ import annotations
+ 
+-import logging
++from scrapy.utils.structured_logger import get_logger
+ from typing import TYPE_CHECKING
+ 
+ from twisted.internet.defer import Deferred
+@@ -28,7 +28,7 @@
+     from scrapy.robotstxt import RobotParser
+ 
+ 
+-logger = logging.getLogger(__name__)
++logger = get_logger(__name__)
+ 
+ 
+ class RobotsTxtMiddleware:
+diff -ruN workspace/scrapy/extensions/debug.py workspace-weasel/scrapy/extensions/debug.py
+--- workspace/scrapy/extensions/debug.py	2026-03-25 04:57:48
++++ workspace-weasel/scrapy/extensions/debug.py	2026-03-25 05:07:11
+@@ -7,7 +7,7 @@
+ from __future__ import annotations
+ 
+ import contextlib
+-import logging
++from scrapy.utils.structured_logger import get_logger
+ import signal
+ import sys
+ import threading
+@@ -27,7 +27,7 @@
+     from scrapy.crawler import Crawler
+ 
+ 
+-logger = logging.getLogger(__name__)
++logger = get_logger(__name__)
+ 
+ 
+ class StackTraceDump:
+diff -ruN workspace/scrapy/extensions/feedexport.py workspace-weasel/scrapy/extensions/feedexport.py
+--- workspace/scrapy/extensions/feedexport.py	2026-03-25 04:57:48
++++ workspace-weasel/scrapy/extensions/feedexport.py	2026-03-25 05:07:11
+@@ -8,7 +8,7 @@
+ 
+ import asyncio
+ import contextlib
+-import logging
++from scrapy.utils.structured_logger import get_logger
+ import re
+ import sys
+ import warnings
+@@ -45,7 +45,7 @@
+     from scrapy.settings import BaseSettings, Settings
+ 
+ 
+-logger = logging.getLogger(__name__)
++logger = get_logger(__name__)
+ 
+ UriParamsCallableT: TypeAlias = Callable[
+     [dict[str, Any], Spider], dict[str, Any] | None
+diff -ruN workspace/scrapy/extensions/httpcache.py workspace-weasel/scrapy/extensions/httpcache.py
+--- workspace/scrapy/extensions/httpcache.py	2026-03-25 04:57:48
++++ workspace-weasel/scrapy/extensions/httpcache.py	2026-03-25 05:07:11
+@@ -1,7 +1,7 @@
+ from __future__ import annotations
+ 
+ import gzip
+-import logging
++from scrapy.utils.structured_logger import get_logger
+ import pickle
+ from email.utils import mktime_tz, parsedate_tz
+ from importlib import import_module
+@@ -29,7 +29,7 @@
+     from scrapy.utils.request import RequestFingerprinterProtocol
+ 
+ 
+-logger = logging.getLogger(__name__)
++logger = get_logger(__name__)
+ 
+ 
+ class DummyPolicy:
+diff -ruN workspace/scrapy/extensions/logcount.py workspace-weasel/scrapy/extensions/logcount.py
+--- workspace/scrapy/extensions/logcount.py	2026-03-25 04:57:48
++++ workspace-weasel/scrapy/extensions/logcount.py	2026-03-25 05:07:11
+@@ -1,6 +1,6 @@
+ from __future__ import annotations
+ 
+-import logging
++from scrapy.utils.structured_logger import get_logger
+ from typing import TYPE_CHECKING
+ 
+ from scrapy import Spider, signals
+@@ -13,7 +13,7 @@
+     from scrapy.crawler import Crawler
+ 
+ 
+-logger = logging.getLogger(__name__)
++logger = get_logger(__name__)
+ 
+ 
+ class LogCount:
+diff -ruN workspace/scrapy/extensions/logstats.py workspace-weasel/scrapy/extensions/logstats.py
+--- workspace/scrapy/extensions/logstats.py	2026-03-25 04:57:48
++++ workspace-weasel/scrapy/extensions/logstats.py	2026-03-25 05:07:11
+@@ -1,6 +1,6 @@
+ from __future__ import annotations
+ 
+-import logging
++from scrapy.utils.structured_logger import get_logger
+ from typing import TYPE_CHECKING
+ 
+ from scrapy import Spider, signals
+@@ -17,7 +17,7 @@
+     from scrapy.statscollectors import StatsCollector
+ 
+ 
+-logger = logging.getLogger(__name__)
++logger = get_logger(__name__)
+ 
+ 
+ class LogStats:
+diff -ruN workspace/scrapy/extensions/memusage.py workspace-weasel/scrapy/extensions/memusage.py
+--- workspace/scrapy/extensions/memusage.py	2026-03-25 04:57:48
++++ workspace-weasel/scrapy/extensions/memusage.py	2026-03-25 05:07:11
+@@ -6,7 +6,7 @@
+ 
+ from __future__ import annotations
+ 
+-import logging
++from scrapy.utils.structured_logger import get_logger
+ import socket
+ import sys
+ import warnings
+@@ -29,7 +29,7 @@
+     from scrapy.crawler import Crawler
+ 
+ 
+-logger = logging.getLogger(__name__)
++logger = get_logger(__name__)
+ 
+ 
+ class MemoryUsage:
+diff -ruN workspace/scrapy/extensions/periodic_log.py workspace-weasel/scrapy/extensions/periodic_log.py
+--- workspace/scrapy/extensions/periodic_log.py	2026-03-25 04:57:48
++++ workspace-weasel/scrapy/extensions/periodic_log.py	2026-03-25 05:07:11
+@@ -1,6 +1,6 @@
+ from __future__ import annotations
+ 
+-import logging
++from scrapy.utils.structured_logger import get_logger
+ from datetime import datetime, timezone
+ from typing import TYPE_CHECKING, Any
+ 
+@@ -21,7 +21,7 @@
+     from scrapy.statscollectors import StatsCollector
+ 
+ 
+-logger = logging.getLogger(__name__)
++logger = get_logger(__name__)
+ 
+ 
+ class PeriodicLog:
+diff -ruN workspace/scrapy/extensions/telnet.py workspace-weasel/scrapy/extensions/telnet.py
+--- workspace/scrapy/extensions/telnet.py	2026-03-25 04:57:48
++++ workspace-weasel/scrapy/extensions/telnet.py	2026-03-25 05:07:11
+@@ -7,7 +7,7 @@
+ from __future__ import annotations
+ 
+ import binascii
+-import logging
++from scrapy.utils.structured_logger import get_logger
+ import os
+ import pprint
+ from typing import TYPE_CHECKING, Any
+@@ -32,7 +32,7 @@
+     from scrapy.crawler import Crawler
+ 
+ 
+-logger = logging.getLogger(__name__)
++logger = get_logger(__name__)
+ 
+ # signal to update telnet variables
+ # args: telnet_vars
+diff -ruN workspace/scrapy/extensions/throttle.py workspace-weasel/scrapy/extensions/throttle.py
+--- workspace/scrapy/extensions/throttle.py	2026-03-25 04:57:48
++++ workspace-weasel/scrapy/extensions/throttle.py	2026-03-25 05:07:11
+@@ -1,6 +1,6 @@
+ from __future__ import annotations
+ 
+-import logging
++from scrapy.utils.structured_logger import get_logger
+ from typing import TYPE_CHECKING
+ 
+ from scrapy import Request, Spider, signals
+@@ -15,7 +15,7 @@
+     from scrapy.http import Response
+ 
+ 
+-logger = logging.getLogger(__name__)
++logger = get_logger(__name__)
+ 
+ 
+ class AutoThrottle:

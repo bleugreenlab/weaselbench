@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>WeaselBench Eval Report</title>
+    <link rel="stylesheet" href="styles.css">
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">WeaselBench Evaluation Report</p>
+          <h1 id="report-title">Loading evaluation...</h1>
+          <p id="report-subtitle" class="subtitle">Preparing static report index.</p>
+        </div>
+        <div id="report-meta" class="meta-grid"></div>
+      </header>
+
+      <section class="toolbar panel">
+        <label class="field">
+          <span>Search tasks</span>
+          <input id="task-search" type="search" placeholder="task id, title, summary">
+        </label>
+        <label class="field">
+          <span>Show</span>
+          <select id="status-filter">
+            <option value="all">All tasks</option>
+            <option value="pass">Tasks with a pass</option>
+            <option value="partial">Tasks with a partial</option>
+            <option value="fail">Tasks with a fail</option>
+          </select>
+        </label>
+        <div id="task-count" class="toolbar-note"></div>
+      </section>
+
+      <section class="section">
+        <div class="section-heading">
+          <h2>Model Strip</h2>
+          <p>Ranked from the current evaluation summary.</p>
+        </div>
+        <div id="model-strip" class="model-strip"></div>
+      </section>
+
+      <main class="workspace">
+        <section class="panel matrix-panel">
+          <div class="section-heading compact">
+            <h2>Task Matrix</h2>
+            <p>Task-first view with canonical runs highlighted per model.</p>
+          </div>
+          <div id="task-matrix" class="matrix-wrap"></div>
+        </section>
+
+        <section class="panel detail-panel">
+          <div id="task-detail" class="task-detail empty-state">
+            Select a task to compare runs.
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

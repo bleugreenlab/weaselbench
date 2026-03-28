@@ -1,0 +1,371 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weaselbench.dev/schemas/task.schema.json",
+  "title": "WeaselBench Task",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "title",
+    "workflow",
+    "prompt",
+    "environment",
+    "labels",
+    "verifier",
+    "scoring"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9\\-]*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "string"
+    },
+    "workflow": {
+      "type": "string",
+      "enum": [
+        "direct_request",
+        "issue_driven"
+      ]
+    },
+    "prompt": {
+      "type": "string",
+      "minLength": 1
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "container_image",
+        "allowed_tools"
+      ],
+      "oneOf": [
+        { "required": ["workspace_snapshot"] },
+        { "required": ["repo_archive"] }
+      ],
+      "properties": {
+        "workspace_snapshot": {
+          "type": "string"
+        },
+        "repo_archive": {
+          "type": "string",
+          "description": "Path to a .tar.gz archive relative to task directory"
+        },
+        "assets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/asset"
+          }
+        },
+        "container_image": {
+          "type": "string"
+        },
+        "provider_runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "runtime"
+          ],
+          "properties": {
+            "runtime": {
+              "type": "string",
+              "enum": [
+                "host",
+                "docker"
+              ]
+            },
+            "runtime_image": {
+              "type": "string"
+            }
+          }
+        },
+        "allowed_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "agent_web_access": {
+          "type": "boolean",
+          "description": "Whether the agent may make arbitrary outbound web requests during task execution. Default: false."
+        },
+        "setup_network_access": {
+          "type": "boolean",
+          "description": "Whether benchmark-controlled setup commands may use the network (e.g. for lockfile-backed dependency installation). Default: true."
+        }
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "description": "Optional advisory budget metadata. These values are reported but do not terminate or score live runs.",
+      "additionalProperties": false,
+      "required": [
+        "wall_clock_minutes",
+        "model_calls",
+        "dollar_cap"
+      ],
+      "properties": {
+        "wall_clock_minutes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "model_calls": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "dollar_cap": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "labels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_family",
+        "temptation_types"
+      ],
+      "properties": {
+        "task_family": {
+          "type": "string",
+          "enum": [
+            "migration_and_removal",
+            "pattern_conformance",
+            "facade_completion",
+            "review_repair",
+            "honest_incompletion"
+          ]
+        },
+        "temptation_types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "scope_shrink",
+              "compatibility_laundering",
+              "facade_completion",
+              "pattern_evasion",
+              "overclaiming"
+            ]
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "verifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "visible_checks",
+        "hidden_checks"
+      ],
+      "properties": {
+        "setup_commands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Commands to run in the workspace before visible checks, typically to materialize task-local dependencies."
+        },
+        "visible_checks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "visible_check_policy": {
+          "type": "string",
+          "enum": [
+            "advisory",
+            "pass_gate",
+            "hard_gate"
+          ],
+          "description": "Whether failing visible checks are informational only, block a true pass, or force the run verdict to fail."
+        },
+        "hidden_checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/check"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "scoring": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "primary_metric",
+        "axes"
+      ],
+      "properties": {
+        "primary_metric": {
+          "type": "string",
+          "enum": [
+            "task_success_rate"
+          ]
+        },
+        "axes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/score_axis"
+          },
+          "minItems": 1
+        },
+        "required_pass_axes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "functional_completion",
+              "structural_compliance",
+              "cleanup_completeness",
+              "communication_quality"
+            ]
+          },
+          "uniqueItems": true
+        }
+      }
+    }
+  },
+  "$defs": {
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "type",
+        "axis",
+        "failure_message"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "hidden_test",
+            "forbid_path",
+            "forbid_import",
+            "require_import",
+            "require_import_all",
+            "require_file_update"
+          ]
+        },
+        "axis": {
+          "type": "string",
+          "enum": [
+            "functional_completion",
+            "structural_compliance",
+            "cleanup_completeness",
+            "communication_quality"
+          ]
+        },
+        "target": {
+          "type": "string"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Glob patterns scoping which files this check examines"
+        },
+        "failure_message": {
+          "type": "string"
+        }
+      }
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "source"],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "source": {
+          "oneOf": [
+            { "$ref": "#/$defs/asset_script_source" },
+            { "$ref": "#/$defs/asset_download_source" }
+          ]
+        }
+      }
+    },
+    "asset_script_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "path"],
+      "properties": {
+        "type": {
+          "const": "script"
+        },
+        "path": {
+          "type": "string"
+        }
+      }
+    },
+    "asset_download_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "url", "sha256"],
+      "properties": {
+        "type": {
+          "const": "download"
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        }
+      }
+    },
+    "score_axis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "weight"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "enum": [
+            "functional_completion",
+            "structural_compliance",
+            "cleanup_completeness",
+            "claim_accuracy",
+            "escalation_correctness",
+            "communication_quality"
+          ]
+        },
+        "weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    }
+  }
+}
